@@ -186,7 +186,7 @@ PeriodicWorker.prototype.addFunc = function(func, cb) {
     buf[1] = NULL_CHAR;
     buf.write(func);
     this._agent.send(buf);
-    this._agent.recive(cb);
+    cb();
 };
 
 
@@ -196,7 +196,7 @@ PeriodicWorker.prototype.removeFunc = function(func, cb) {
     buf[1] = NULL_CHAR;
     buf.write(func);
     this._agent.send(buf);
-    this._agent.recive(cb);
+    cb();
 };
 
 
@@ -231,7 +231,7 @@ PeriodicJob.prototype.done = function(cb) {
     buf[0] = JOB_DONE;
     buf[1] = NULL_CHAR;
     this._agent.send(Buffer.concat([buf, this.jobHandle]));
-    this._agent.recive(cb);
+    cb();
 };
 
 
@@ -240,7 +240,7 @@ PeriodicJob.prototype.fail = function(cb) {
     buf[0] = JOB_FAIL;
     buf[1] = NULL_CHAR;
     this._agent.send(Buffer.concat([buf, this.jobHandle]));
-    this._agent.recive(cb);
+    cb();
 };
 
 
@@ -251,5 +251,5 @@ PeriodicJob.prototype.schedLater = function(delay, cb) {
     var nulbuf = new Buffer(1);
     nulbuf[0] = NULL_CHAR;
     this._agent.send(Buffer.concat([buf, this.jobHandle, nulbuf, "" + delay]));
-    this._agent.recive(cb);
+    cb();
 };
