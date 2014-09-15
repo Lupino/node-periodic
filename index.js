@@ -1,4 +1,4 @@
-"use strict"
+"use strict";
 
 var net = require('net')
   , EventEmitter = require('events').EventEmitter
@@ -26,6 +26,7 @@ var UNKNOWN     = exports.UNKNOWN     = 12;
 var SUBMIT_JOB  = exports.SUBMIT_JOB  = 13;
 var STATUS      = exports.STATUS      = 14;
 var DROP_FUNC   = exports.DROP_FUNC   = 15;
+var SUCCESS     = exports.SUCCESS     = 16;
 
 var NULL_CHAR = 1;
 
