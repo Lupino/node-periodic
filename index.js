@@ -5,35 +5,35 @@ var net = require('net')
   , util = require('util')
   ;
 
-var NOOP        = exports.NOOP        = 0
+var NOOP        = exports.NOOP        = 0;
 // for job
-var GRAB_JOB    = exports.GRAB_JOB    = 1
-var SCHED_LATER = exports.SCHED_LATER = 2
-var JOB_DONE    = exports.JOB_DONE    = 3
-var JOB_FAIL    = exports.JOB_FAIL    = 4
-var WAIT_JOB    = exports.WAIT_JOB    = 5
-var NO_JOB      = exports.NO_JOB      = 6
+var GRAB_JOB    = exports.GRAB_JOB    = 1;
+var SCHED_LATER = exports.SCHED_LATER = 2;
+var JOB_DONE    = exports.JOB_DONE    = 3;
+var JOB_FAIL    = exports.JOB_FAIL    = 4;
+var WAIT_JOB    = exports.WAIT_JOB    = 5;
+var NO_JOB      = exports.NO_JOB      = 6;
 // for func
-var CAN_DO      = exports.CAN_DO      = 7
-var CANT_DO     = exports.CANT_DO     = 8
+var CAN_DO      = exports.CAN_DO      = 7;
+var CANT_DO     = exports.CANT_DO     = 8;
 // for test
-var PING        = exports.PING        = 9
-var PONG        = exports.PONG        = 10
+var PING        = exports.PING        = 9;
+var PONG        = exports.PONG        = 10;
 // other
-var SLEEP       = exports.SLEEP       = 11
-var UNKNOWN     = exports.UNKNOWN     = 12
+var SLEEP       = exports.SLEEP       = 11;
+var UNKNOWN     = exports.UNKNOWN     = 12;
 // client command
-var SUBMIT_JOB  = exports.SUBMIT_JOB  = 13
-var STATUS      = exports.STATUS      = 14
-var DROP_FUNC   = exports.DROP_FUNC   = 15
+var SUBMIT_JOB  = exports.SUBMIT_JOB  = 13;
+var STATUS      = exports.STATUS      = 14;
+var DROP_FUNC   = exports.DROP_FUNC   = 15;
 
-var NULL_CHAR = 1
+var NULL_CHAR = 1;
 
 
 // client type
 
-var TYPE_CLIENT = 1
-var TYPE_WORKER = 2
+var TYPE_CLIENT = 1;
+var TYPE_WORKER = 2;
 
 
 var BaseClient = function(options, clientType) {
@@ -213,7 +213,7 @@ var PeriodicJob = function(buf, agent) {
     for (var idx = len - 1; idx >= 0; idx --) {
         if (buf[idx] === NULL_CHAR) {
             splitIdx = idx;
-            break
+            break;
         }
     }
     this.jobHandle = this._buffer.slice(splitIdx + 1, len);
