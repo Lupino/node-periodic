@@ -57,9 +57,8 @@ var BaseClient = function(options, clientType) {
             if (buffer.length >=  4 + length) {
                 self._buffers = [buffer.slice(4 + length, buffer.length)];
                 var payload = buffer.slice(4, 4 + length);
-                payload = bsplit(payload, NULL_CHAR);
-                var msgId = payload[0].toString();
-                payload = Buffer.concat(payload.slice(1, payload.length));
+                var msgId = bsplit(payload, NULL_CHAR)[0];
+                payload = payload.slice(msgId.length + NULL_CHAR.length, payload.length);
                 self.emit(msgId + "-data", payload);
             }
         }
@@ -142,8 +141,8 @@ PeriodicClient.prototype.ping = function(cb) {
 
 PeriodicClient.prototype.submitJob = function(job, cb) {
     var agent = this._client.agent();
-    agent.send(Buffer.concat(SUBMIT_JOB, NULL_CHAR,
-                new Buffer(JSON.stringify(job))));
+    agent.send(Buffer.concat([SUBMIT_JOB, NULL_CHAR,
+                new Buffer(JSON.stringify(job))]));
     agent.recive(cb);
 };
 
@@ -160,7 +159,7 @@ PeriodicClient.prototype.status = function(cb) {
 
 PeriodicClient.prototype.dropFunc = function(func, cb) {
     var agent = this._client.agent();
-    agent.send(Buffer.concat(DROP_FUNC, NULL_CHAR, new Buffer(func)));
+    agent.send(Buffer.concat([DROP_FUNC, NULL_CHAR, new Buffer(func)]));
     agent.recive(cb);
 };
 
@@ -185,7 +184,6 @@ PeriodicWorker.prototype.ping = function(cb) {
 PeriodicWorker.prototype.grabJob = function(cb) {
     var agent = this._client.agent();
     agent.send(GRAB_JOB);
-    agent.recive(cb);
     agent.recive(function(err, buf) {
         if (err) return cb(err);
         if (buf === NO_JOB || buf === WAIT_JOB) {
@@ -198,14 +196,14 @@ PeriodicWorker.prototype.grabJob = function(cb) {
 
 PeriodicWorker.prototype.addFunc = function(func, cb) {
     var agent = this._client.agent();
-    agent.send(Buffer.concat(CAN_DO, NULL_CHAR, new Buffer(func)));
+    agent.send(Buffer.concat([CAN_DO, NULL_CHAR, new Buffer(func)]));
     cb();
 };
 
 
 PeriodicWorker.prototype.removeFunc = function(func, cb) {
     var agent = this._client.agent();
-    agent.send(Buffer.concat(CANT_DO, NULL_CHAR, new Buffer(func)));
+    agent.send(Buffer.concat([CANT_DO, NULL_CHAR, new Buffer(func)]));
     cb();
 };
 
@@ -220,7 +218,7 @@ var PeriodicJob = function(buf, agent) {
     this._agent = agent;
     var payload = bsplit(buf, NULL_CHAR);
     this.jobHandle = payload[0];
-    this._payload = JSON.parse(payload[1]);
+    this._payload = JSON.parse(payload[1].toString());
     this.funcName = this._payload.func;
     this.name = this._payload.name;
     this.schedAt = this._payload.sched_at;
@@ -243,6 +241,6 @@ PeriodicJob.prototype.fail = function(cb) {
 
 PeriodicJob.prototype.schedLater = function(delay, cb) {
     this._agent.send(Buffer.concat([SCHED_LATER, NULL_CHAR, this.jobHandle,
-                NULL_CHAR, "" + delay]));
+                NULL_CHAR, new Buffer("" + delay)]));
     cb();
 };
