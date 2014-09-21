@@ -3,38 +3,39 @@
 var net = require('net')
   , EventEmitter = require('events').EventEmitter
   , util = require('util')
+  , bsplit = require('buffer-split')
   ;
 
-var NOOP        = exports.NOOP        = 0;
+var NOOP        = exports.NOOP        = new Buffer("\x00");
 // for job
-var GRAB_JOB    = exports.GRAB_JOB    = 1;
-var SCHED_LATER = exports.SCHED_LATER = 2;
-var JOB_DONE    = exports.JOB_DONE    = 3;
-var JOB_FAIL    = exports.JOB_FAIL    = 4;
-var WAIT_JOB    = exports.WAIT_JOB    = 5;
-var NO_JOB      = exports.NO_JOB      = 6;
+var GRAB_JOB    = exports.GRAB_JOB    = new Buffer("\x01");
+var SCHED_LATER = exports.SCHED_LATER = new Buffer("\x02");
+var JOB_DONE    = exports.JOB_DONE    = new Buffer("\x03");
+var JOB_FAIL    = exports.JOB_FAIL    = new Buffer("\x04");
+var WAIT_JOB    = exports.WAIT_JOB    = new Buffer("\x05");
+var NO_JOB      = exports.NO_JOB      = new Buffer("\x06");
 // for func
-var CAN_DO      = exports.CAN_DO      = 7;
-var CANT_DO     = exports.CANT_DO     = 8;
+var CAN_DO      = exports.CAN_DO      = new Buffer("\x07");
+var CANT_DO     = exports.CANT_DO     = new Buffer("\x08");
 // for test
-var PING        = exports.PING        = 9;
-var PONG        = exports.PONG        = 10;
+var PING        = exports.PING        = new Buffer("\x09");
+var PONG        = exports.PONG        = new Buffer("\x0A");
 // other
-var SLEEP       = exports.SLEEP       = 11;
-var UNKNOWN     = exports.UNKNOWN     = 12;
+var SLEEP       = exports.SLEEP       = new Buffer("\x0B");
+var UNKNOWN     = exports.UNKNOWN     = new Buffer("\x0C");
 // client command
-var SUBMIT_JOB  = exports.SUBMIT_JOB  = 13;
-var STATUS      = exports.STATUS      = 14;
-var DROP_FUNC   = exports.DROP_FUNC   = 15;
-var SUCCESS     = exports.SUCCESS     = 16;
+var SUBMIT_JOB  = exports.SUBMIT_JOB  = new Buffer("\x0D");
+var STATUS      = exports.STATUS      = new Buffer("\x0E");
+var DROP_FUNC   = exports.DROP_FUNC   = new Buffer("\x0F");
+var SUCCESS     = exports.SUCCESS     = new Buffer("\x10");
 
-var NULL_CHAR = 1;
+var NULL_CHAR = new Buffer("\x00\x01");
 
 
 // client type
 
-var TYPE_CLIENT = 1;
-var TYPE_WORKER = 2;
+var TYPE_CLIENT = new Buffer("\x01");
+var TYPE_WORKER = new Buffer("\x02");
 
 
 var BaseClient = function(options, clientType) {
@@ -42,9 +43,9 @@ var BaseClient = function(options, clientType) {
     this._clientType = clientType;
     var socket = net.connect(options) ;
     this._socket = socket;
-    var buf = new Buffer(1);
-    buf[0] = clientType;
-    this.send(buf);
+    this._msgId = 0;
+    var agent = new BaseAgent(this, 0);
+    agent.send(clientType);
     this._buffers = [];
     var self = this;
     socket.on("data", function(chunk) {
@@ -54,8 +55,12 @@ var BaseClient = function(options, clientType) {
             var header = buffer.slice(0, 4);
             var length = parseHeader(header);
             if (buffer.length >=  4 + length) {
-                self.emit("data", buffer.slice(4, 4 + length));
                 self._buffers = [buffer.slice(4 + length, buffer.length)];
+                var payload = buffer.slice(4, 4 + length);
+                payload = bsplit(payload, NULL_CHAR);
+                var msgId = payload[0].toString();
+                payload = Buffer.concat(payload.slice(1, payload.length));
+                self.emit(msgId + "-data", payload);
             }
         }
     });
@@ -65,18 +70,30 @@ var BaseClient = function(options, clientType) {
 util.inherits(BaseClient, EventEmitter);
 
 
-BaseClient.prototype.send = function(buf) {
+var BaseAgent = function(client, msgId) {
+    this._client = client;
+    this._msgId = msgId;
+};
+
+BaseAgent.prototype.send = function(buf) {
+    if (this._msgId > 0) {
+        buf = Buffer.concat([new Buffer(this._msgId + ""), NULL_CHAR, buf]);
+    }
     var header = makeHeader(buf);
-    this._socket.write(header);
-    this._socket.write(buf);
+    this._client._socket.write(header);
+    this._client._socket.write(buf);
 };
 
 
-BaseClient.prototype.recive = function(cb) {
-    this.once("data", function(data) {
+BaseAgent.prototype.recive = function(cb) {
+    var self = this;
+    var events = [this._msgId + "-data", this._msgId + "-error"];
+    this._client.once(this._msgId + "-data", function(data) {
+        self._client.removeAllListeners(events);
         cb(null, data);
     });
-    this.once("error", function(err) {
+    this._client.once(this._msgId + "-error", function(err) {
+        self._client.removeAllListeners(events);
         cb(err);
     });
 };
@@ -84,6 +101,12 @@ BaseClient.prototype.recive = function(cb) {
 
 BaseClient.prototype.close = function() {
     this._socket.end();
+};
+
+
+BaseClient.prototype.agent = function() {
+    this._msgId += 1;
+    return new BaseAgent(this, this._msgId);
 };
 
 
@@ -106,33 +129,29 @@ function makeHeader(data) {
 
 
 var PeriodicClient = exports.PeriodicClient = function(options) {
-    this._agent = new BaseClient(options, TYPE_CLIENT);
+    this._client = new BaseClient(options, TYPE_CLIENT);
 };
 
 
 PeriodicClient.prototype.ping = function(cb) {
-    var buf = new Buffer(1);
-    buf[0] = PING;
-    this._agent.send(buf);
-    this._agent.recive(cb);
+    var agent = this._client.agent();
+    agent.send(PING);
+    agent.recive(cb);
 };
 
 
 PeriodicClient.prototype.submitJob = function(job, cb) {
-    var buf = new Buffer(2);
-    buf[0] = SUBMIT_JOB;
-    buf[1] = NULL_CHAR;
-    buf.write(JSON.stringify(job));
-    this._agent.send(buf);
-    this._agent.recive(cb);
+    var agent = this._client.agent();
+    agent.send(Buffer.concat(SUBMIT_JOB, NULL_CHAR,
+                new Buffer(JSON.stringify(job))));
+    agent.recive(cb);
 };
 
 
 PeriodicClient.prototype.status = function(cb) {
-    var buf = new Buffer(1);
-    buf[0] = STATUS;
-    this._agent.send(buf);
-    this._agent.recive(function(err, rsp) {
+    var agent = this._client.agent();
+    agent.send(STATUS);
+    agent.recive(function(err, rsp) {
         if (err) return cb(err);
         cb(null, JSON.parse(rsp));
     });
@@ -140,85 +159,68 @@ PeriodicClient.prototype.status = function(cb) {
 
 
 PeriodicClient.prototype.dropFunc = function(func, cb) {
-    var buf = new Buffer(2);
-    buf[0] = DROP_FUNC;
-    buf[1] = NULL_CHAR;
-    buf.write(func);
-    this._agent.send(buf);
-    this._agent.recive(cb);
+    var agent = this._client.agent();
+    agent.send(Buffer.concat(DROP_FUNC, NULL_CHAR, new Buffer(func)));
+    agent.recive(cb);
 };
 
 
 PeriodicClient.prototype.close = function() {
-    this._agent.close();
+    this._client.close();
 };
 
 
 var PeriodicWorker = exports.PeriodicWorker = function(options) {
-    this._agent = new BaseClient(options, TYPE_WORKER);
+    this._client = new BaseClient(options, TYPE_WORKER);
 };
 
 
 PeriodicWorker.prototype.ping = function(cb) {
-    var buf = new Buffer(1);
-    buf[0] = PING;
-    this._agent.send(buf);
-    this._agent.recive(cb);
+    var agent = this._client.agent();
+    agent.send(PING);
+    agent.recive(cb);
 };
 
 
 PeriodicWorker.prototype.grabJob = function(cb) {
-    var buf = new Buffer(1);
-    buf[0] = GRAB_JOB;
-    this._agent.send(buf);
-    this._agent.recive(function(err, buf) {
+    var agent = this._client.agent();
+    agent.send(GRAB_JOB);
+    agent.recive(cb);
+    agent.recive(function(err, buf) {
         if (err) return cb(err);
-        if (buf[0] === NO_JOB || buf[0] === WAIT_JOB) {
+        if (buf === NO_JOB || buf === WAIT_JOB) {
             return cb(null, null);
         }
-        cb(null, new PeriodicJob(buf, this._agent));
+        cb(null, new PeriodicJob(buf, agent));
     });
 };
 
 
 PeriodicWorker.prototype.addFunc = function(func, cb) {
-    var buf = new Buffer(2);
-    buf[0] = CAN_DO;
-    buf[1] = NULL_CHAR;
-    buf.write(func);
-    this._agent.send(buf);
+    var agent = this._client.agent();
+    agent.send(Buffer.concat(CAN_DO, NULL_CHAR, new Buffer(func)));
     cb();
 };
 
 
 PeriodicWorker.prototype.removeFunc = function(func, cb) {
-    var buf = new Buffer(2);
-    buf[0] = CANT_DO;
-    buf[1] = NULL_CHAR;
-    buf.write(func);
-    this._agent.send(buf);
+    var agent = this._client.agent();
+    agent.send(Buffer.concat(CANT_DO, NULL_CHAR, new Buffer(func)));
     cb();
 };
 
 
 PeriodicWorker.prototype.close = function() {
-    this._agent.close();
+    this._client.close();
 };
 
 
 var PeriodicJob = function(buf, agent) {
     this._buffer = buf;
     this._agent = agent;
-    var len = this._buffer.length;
-    var splitIdx = 0;
-    for (var idx = len - 1; idx >= 0; idx --) {
-        if (buf[idx] === NULL_CHAR) {
-            splitIdx = idx;
-            break;
-        }
-    }
-    this.jobHandle = this._buffer.slice(splitIdx + 1, len);
-    this._payload = JSON.parse(this._buffer.slice(0, splitIdx));
+    var payload = bsplit(buf, NULL_CHAR);
+    this.jobHandle = payload[0];
+    this._payload = JSON.parse(payload[1]);
     this.funcName = this._payload.func;
     this.name = this._payload.name;
     this.schedAt = this._payload.sched_at;
@@ -228,29 +230,19 @@ var PeriodicJob = function(buf, agent) {
 
 
 PeriodicJob.prototype.done = function(cb) {
-    var buf = new Buffer(2);
-    buf[0] = JOB_DONE;
-    buf[1] = NULL_CHAR;
-    this._agent.send(Buffer.concat([buf, this.jobHandle]));
+    this._agent.send(Buffer.concat([JOB_DONE, NULL_CHAR, this.jobHandle]));
     cb();
 };
 
 
 PeriodicJob.prototype.fail = function(cb) {
-    var buf = new Buffer(2);
-    buf[0] = JOB_FAIL;
-    buf[1] = NULL_CHAR;
-    this._agent.send(Buffer.concat([buf, this.jobHandle]));
+    this._agent.send(Buffer.concat([JOB_FAIL, NULL_CHAR, this.jobHandle]));
     cb();
 };
 
 
 PeriodicJob.prototype.schedLater = function(delay, cb) {
-    var buf = new Buffer(2);
-    buf[0] = SCHED_LATER;
-    buf[1] = NULL_CHAR;
-    var nulbuf = new Buffer(1);
-    nulbuf[0] = NULL_CHAR;
-    this._agent.send(Buffer.concat([buf, this.jobHandle, nulbuf, "" + delay]));
+    this._agent.send(Buffer.concat([SCHED_LATER, NULL_CHAR, this.jobHandle,
+                NULL_CHAR, "" + delay]));
     cb();
 };
