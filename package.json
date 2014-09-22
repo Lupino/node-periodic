@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/Lupino/node-periodic"
   },
   "author": "Li Meng Jun <lmjubuntu@gmail.com>",
   "license": "MIT",
