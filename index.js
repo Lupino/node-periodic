@@ -44,6 +44,7 @@ var BaseClient = function(options, clientType) {
     var socket = net.connect(options) ;
     this._socket = socket;
     this._msgId = 0;
+    this._maxMsgId = options.maxMsgId || 100;
     var agent = new BaseAgent(this, 0);
     agent.send(clientType);
     this._buffers = [];
@@ -105,6 +106,9 @@ BaseClient.prototype.close = function() {
 
 BaseClient.prototype.agent = function() {
     this._msgId += 1;
+    if (this._msgId > this._maxMsgId) {
+        this._msgId = 1;
+    }
     return new BaseAgent(this, this._msgId);
 };
 
