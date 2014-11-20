@@ -150,9 +150,20 @@ PeriodicClient.prototype.submitJob = function(job, cb) {
 PeriodicClient.prototype.status = function(cb) {
     var agent = this._client.agent();
     agent.send(STATUS);
-    agent.recive(function(err, rsp) {
+    agent.recive(function(err, payload) {
         if (err) return cb(err);
-        cb(null, JSON.parse(rsp));
+        var retval = {};
+        var stats = payload.toString().trim().split('\n').forEach(function(stat) {
+            stat = stat.split(",");
+            retval[stat[0]] = {
+                'func_name': stat[0],
+                'worker_count': Number(stat[1]),
+                'job_count': Number(stat[2]),
+                'processing': Number(stat[3])
+            };
+
+        });
+        cb(null, retval);
     });
 };
 
