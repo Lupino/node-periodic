@@ -10,9 +10,9 @@ var NOOP        = exports.NOOP        = new Buffer("\x00");
 // for job
 var GRAB_JOB    = exports.GRAB_JOB    = new Buffer("\x01");
 var SCHED_LATER = exports.SCHED_LATER = new Buffer("\x02");
-var JOB_DONE    = exports.JOB_DONE    = new Buffer("\x03");
-var JOB_FAIL    = exports.JOB_FAIL    = new Buffer("\x04");
-var WAIT_JOB    = exports.WAIT_JOB    = new Buffer("\x05");
+var WORK_DONE   = exports.WORK_DONE   = new Buffer("\x03");
+var WORK_FAIL   = exports.WORK_FAIL   = new Buffer("\x04");
+var JOB_ASSIGN  = exports.JOB_ASSIGN  = new Buffer("\x05");
 var NO_JOB      = exports.NO_JOB      = new Buffer("\x06");
 // for func
 var CAN_DO      = exports.CAN_DO      = new Buffer("\x07");
@@ -201,10 +201,11 @@ PeriodicWorker.prototype.grabJob = function(cb) {
     agent.send(GRAB_JOB);
     agent.recive(function(err, buf) {
         if (err) return cb(err);
-        if (buf === NO_JOB || buf === WAIT_JOB) {
+        var cmd = buf.slice(0,1);
+        if (buf[0] === NO_JOB[0] || cmd[0] !== JOB_ASSIGN[0]) {
             return cb(null, null);
         }
-        cb(null, new PeriodicJob(buf, agent));
+        cb(null, new PeriodicJob(buf.slice(3, buf.length), agent));
     });
 };
 
@@ -243,13 +244,13 @@ var PeriodicJob = function(buf, agent) {
 
 
 PeriodicJob.prototype.done = function(cb) {
-    this._agent.send(Buffer.concat([JOB_DONE, NULL_CHAR, this.jobHandle]));
+    this._agent.send(Buffer.concat([WORK_DONE, NULL_CHAR, this.jobHandle]));
     cb();
 };
 
 
 PeriodicJob.prototype.fail = function(cb) {
-    this._agent.send(Buffer.concat([JOB_FAIL, NULL_CHAR, this.jobHandle]));
+    this._agent.send(Buffer.concat([WORK_FAIL, NULL_CHAR, this.jobHandle]));
     cb();
 };
 
