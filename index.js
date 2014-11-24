@@ -4,6 +4,7 @@ var net = require('net')
   , EventEmitter = require('events').EventEmitter
   , util = require('util')
   , bsplit = require('buffer-split')
+  , bufferEqual = require('buffer-equal')
   ;
 
 var NOOP        = exports.NOOP        = new Buffer("\x00");
@@ -29,7 +30,9 @@ var STATUS      = exports.STATUS      = new Buffer("\x0E");
 var DROP_FUNC   = exports.DROP_FUNC   = new Buffer("\x0F");
 var SUCCESS     = exports.SUCCESS     = new Buffer("\x10");
 
-var NULL_CHAR = new Buffer("\x00\x01");
+var NULL_CHAR       = new Buffer("\x00\x01");
+var MAGIC_REQUEST   = new Buffer("\x00REQ");
+var MAGIC_RESPONSE  = new Buffer("\x00RES");
 
 
 // client type
@@ -52,12 +55,16 @@ var BaseClient = function(options, clientType) {
     socket.on("data", function(chunk) {
         self._buffers.push(chunk);
         var buffer = Buffer.concat(self._buffers);
-        if (buffer.length >= 4) {
-            var header = buffer.slice(0, 4);
+        if (buffer.length >= 8) {
+            var magic = buffer.slice(0, 4);
+            if (!bufferEqual(magic, MAGIC_RESPONSE)) {
+                throw "Magic not match.";
+            }
+            var header = buffer.slice(4, 8);
             var length = parseHeader(header);
-            if (buffer.length >=  4 + length) {
-                self._buffers = [buffer.slice(4 + length, buffer.length)];
-                var payload = buffer.slice(4, 4 + length);
+            if (buffer.length >=  8 + length) {
+                self._buffers = [buffer.slice(8 + length, buffer.length)];
+                var payload = buffer.slice(8, 8 + length);
                 var msgId = bsplit(payload, NULL_CHAR)[0];
                 payload = payload.slice(msgId.length + NULL_CHAR.length, payload.length);
                 self.emit(msgId + "-data", payload);
@@ -80,6 +87,7 @@ BaseAgent.prototype.send = function(buf) {
         buf = Buffer.concat([new Buffer(this._msgId + ""), NULL_CHAR, buf]);
     }
     var header = makeHeader(buf);
+    this._client._socket.write(MAGIC_REQUEST);
     this._client._socket.write(header);
     this._client._socket.write(buf);
 };
