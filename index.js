@@ -29,6 +29,7 @@ var SUBMIT_JOB  = exports.SUBMIT_JOB  = new Buffer("\x0D");
 var STATUS      = exports.STATUS      = new Buffer("\x0E");
 var DROP_FUNC   = exports.DROP_FUNC   = new Buffer("\x0F");
 var SUCCESS     = exports.SUCCESS     = new Buffer("\x10");
+var REMOVE_JOB  = exports.REMOVE_JOB  = new Buffer("\x11");
 
 var NULL_CHAR       = new Buffer("\x00\x01");
 var MAGIC_REQUEST   = new Buffer("\x00REQ");
@@ -183,6 +184,13 @@ PeriodicClient.prototype.status = function(cb) {
 PeriodicClient.prototype.dropFunc = function(func, cb) {
     var agent = this._client.agent();
     agent.send(Buffer.concat([DROP_FUNC, NULL_CHAR, new Buffer(func)]));
+    agent.recive(cb);
+};
+
+
+PeriodicClient.prototype.removeJob = function(job, cb) {
+    var agent = this._client.agent();
+    agent.send(Buffer.concat([REMOVE_JOB, NULL_CHAR, new Buffer(JSON.stringify(job))]));
     agent.recive(cb);
 };
 
