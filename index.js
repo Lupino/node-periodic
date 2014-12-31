@@ -5,6 +5,7 @@ var net = require('net')
   , util = require('util')
   , bsplit = require('buffer-split')
   , bufferEqual = require('buffer-equal')
+  , uuid = require('uuid')
   ;
 
 var NOOP        = exports.NOOP        = new Buffer("\x00");
@@ -47,9 +48,7 @@ var BaseClient = function(options, clientType) {
     this._clientType = clientType;
     var socket = net.connect(options) ;
     this._socket = socket;
-    this._msgId = 0;
-    this._maxMsgId = options.maxMsgId || 100;
-    var agent = new BaseAgent(this, 0);
+    var agent = new BaseAgent(this, null);
     agent.send(clientType);
     this._buffers = [];
     var self = this;
@@ -66,9 +65,9 @@ var BaseClient = function(options, clientType) {
             if (buffer.length >=  8 + length) {
                 self._buffers = [buffer.slice(8 + length, buffer.length)];
                 var payload = buffer.slice(8, 8 + length);
-                var msgId = bsplit(payload, NULL_CHAR)[0];
-                payload = payload.slice(msgId.length + NULL_CHAR.length, payload.length);
-                self.emit(msgId + "-data", payload);
+                var uuid = bsplit(payload, NULL_CHAR)[0];
+                payload = payload.slice(uuid.length + NULL_CHAR.length, payload.length);
+                self.emit(uuid + "-data", payload);
             }
         }
     });
@@ -78,14 +77,14 @@ var BaseClient = function(options, clientType) {
 util.inherits(BaseClient, EventEmitter);
 
 
-var BaseAgent = function(client, msgId) {
+var BaseAgent = function(client, uuid) {
     this._client = client;
-    this._msgId = msgId;
+    this._uuid = uuid;
 };
 
 BaseAgent.prototype.send = function(buf) {
-    if (this._msgId > 0) {
-        buf = Buffer.concat([new Buffer(this._msgId + ""), NULL_CHAR, buf]);
+    if (this._uuid) {
+        buf = Buffer.concat([new Buffer(this._uuid + ""), NULL_CHAR, buf]);
     }
     var header = makeHeader(buf);
     this._client._socket.write(MAGIC_REQUEST);
@@ -96,12 +95,12 @@ BaseAgent.prototype.send = function(buf) {
 
 BaseAgent.prototype.recive = function(cb) {
     var self = this;
-    var events = [this._msgId + "-data", this._msgId + "-error"];
-    this._client.once(this._msgId + "-data", function(data) {
+    var events = [this._uuid + "-data", this._uuid + "-error"];
+    this._client.once(this._uuid + "-data", function(data) {
         self._client.removeAllListeners(events);
         cb(null, data);
     });
-    this._client.once(this._msgId + "-error", function(err) {
+    this._client.once(this._uuid + "-error", function(err) {
         self._client.removeAllListeners(events);
         cb(err);
     });
@@ -114,11 +113,7 @@ BaseClient.prototype.close = function() {
 
 
 BaseClient.prototype.agent = function() {
-    this._msgId += 1;
-    if (this._msgId > this._maxMsgId) {
-        this._msgId = 1;
-    }
-    return new BaseAgent(this, this._msgId);
+    return new BaseAgent(this, uuid.v1());
 };
 
 
