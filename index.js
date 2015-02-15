@@ -48,6 +48,7 @@ var BaseClient = function(options, clientType) {
     this._clientType = clientType;
     var socket = net.connect(options) ;
     this._socket = socket;
+    this._agents = {};
     var agent = new BaseAgent(this, null);
     agent.send(clientType);
     this._buffers = [];
@@ -67,20 +68,36 @@ var BaseClient = function(options, clientType) {
                 var payload = buffer.slice(8, 8 + length);
                 var uuid = bsplit(payload, NULL_CHAR)[0];
                 payload = payload.slice(uuid.length + NULL_CHAR.length, payload.length);
-                self.emit(uuid + "-data", payload);
+                self.emitAgent('data', uuid, payload);
+                self.emitAgent('end', uuid);
             }
         }
     });
 };
 
 
-util.inherits(BaseClient, EventEmitter);
-
-
-var BaseAgent = function(client, uuid) {
+var BaseAgent = function(client, uuid, cb) {
     this._client = client;
     this._uuid = uuid;
+    this._cb = cb || function() {};
+    this._data = [];
+
+    var self = this;
+
+    this.on('data', function(data) {
+        self.onData(data);
+    });
+
+    this.on('end', function() {
+        self.onEnd();
+    });
+    this.on('error', function(err) {
+        self.onError(err);
+    });
 };
+
+
+util.inherits(BaseAgent, EventEmitter);
 
 BaseAgent.prototype.send = function(buf) {
     if (this._uuid) {
@@ -93,17 +110,25 @@ BaseAgent.prototype.send = function(buf) {
 };
 
 
-BaseAgent.prototype.recive = function(cb) {
-    var self = this;
-    var events = [this._uuid + "-data", this._uuid + "-error"];
-    this._client.once(this._uuid + "-data", function(data) {
-        self._client.removeAllListeners(events);
-        cb(null, data);
-    });
-    this._client.once(this._uuid + "-error", function(err) {
-        self._client.removeAllListeners(events);
-        cb(err);
-    });
+BaseAgent.prototype.onData = function (data) {
+    this._data.push(data);
+};
+
+
+BaseAgent.prototype.onEnd = function () {
+    this._client.removeAgent(this);
+    if (this._data && this._data.length > 0) {
+        var data = Buffer.concat(this._data);
+        this._cb(null, data);
+    } else {
+        this._cb();
+    }
+};
+
+
+BaseAgent.prototype.onError = function (err) {
+    this._client.removeAgent(this);
+    this._cb(err);
 };
 
 
@@ -112,8 +137,27 @@ BaseClient.prototype.close = function() {
 };
 
 
-BaseClient.prototype.agent = function() {
-    return new BaseAgent(this, uuid.v1());
+BaseClient.prototype.agent = function(cb) {
+    var agent = new BaseAgent(this, uuid.v1(), cb);
+    this._agents[agent._uuid] = agent;
+    return agent;
+};
+
+
+BaseClient.prototype.removeAgent = function(agent) {
+    if (this._agents[agent._uuid]) {
+        delete this._agents[agent._uuid];
+    }
+};
+
+
+BaseClient.prototype.emitAgent = function(evt, uuid, data) {
+    var agent = this._agents[uuid];
+    if (agent) {
+        agent.emit(evt, data);
+    } else {
+        throw 'Agent ' + uuid + ' not found.';
+    }
 };
 
 
@@ -141,24 +185,20 @@ var PeriodicClient = exports.PeriodicClient = function(options) {
 
 
 PeriodicClient.prototype.ping = function(cb) {
-    var agent = this._client.agent();
+    var agent = this._client.agent(cb);
     agent.send(PING);
-    agent.recive(cb);
 };
 
 
 PeriodicClient.prototype.submitJob = function(job, cb) {
-    var agent = this._client.agent();
+    var agent = this._client.agent(cb);
     agent.send(Buffer.concat([SUBMIT_JOB, NULL_CHAR,
                 new Buffer(JSON.stringify(job))]));
-    agent.recive(cb);
 };
 
 
 PeriodicClient.prototype.status = function(cb) {
-    var agent = this._client.agent();
-    agent.send(STATUS);
-    agent.recive(function(err, payload) {
+    var agent = this._client.agent(function(err, payload) {
         if (err) return cb(err);
         var retval = {};
         var stats = payload.toString().trim().split('\n').forEach(function(stat) {
@@ -173,20 +213,19 @@ PeriodicClient.prototype.status = function(cb) {
         });
         cb(null, retval);
     });
+    agent.send(STATUS);
 };
 
 
 PeriodicClient.prototype.dropFunc = function(func, cb) {
-    var agent = this._client.agent();
+    var agent = this._client.agent(cb);
     agent.send(Buffer.concat([DROP_FUNC, NULL_CHAR, new Buffer(func)]));
-    agent.recive(cb);
 };
 
 
 PeriodicClient.prototype.removeJob = function(job, cb) {
-    var agent = this._client.agent();
+    var agent = this._client.agent(cb);
     agent.send(Buffer.concat([REMOVE_JOB, NULL_CHAR, new Buffer(JSON.stringify(job))]));
-    agent.recive(cb);
 };
 
 
@@ -201,37 +240,35 @@ var PeriodicWorker = exports.PeriodicWorker = function(options) {
 
 
 PeriodicWorker.prototype.ping = function(cb) {
-    var agent = this._client.agent();
+    var agent = this._client.agent(cb);
     agent.send(PING);
-    agent.recive(cb);
 };
 
 
 PeriodicWorker.prototype.grabJob = function(cb) {
-    var agent = this._client.agent();
-    agent.send(GRAB_JOB);
-    agent.recive(function(err, buf) {
+    var self = this;
+    var agent = this._client.agent(function(err, buf) {
         if (err) return cb(err);
         var cmd = buf.slice(0,1);
         if (buf[0] === NO_JOB[0] || cmd[0] !== JOB_ASSIGN[0]) {
             return cb(null, null);
         }
-        cb(null, new PeriodicJob(buf.slice(3, buf.length), agent));
+        cb(null, new PeriodicJob(buf.slice(3, buf.length), self._client));
     });
+    agent.send(GRAB_JOB);
 };
 
 
 PeriodicWorker.prototype.addFunc = function(func, cb) {
-    var agent = this._client.agent();
+    var agent = this._client.agent(cb);
     agent.send(Buffer.concat([CAN_DO, NULL_CHAR, new Buffer(func)]));
-    cb();
+    agent.emit('end');
 };
 
 
 PeriodicWorker.prototype.removeFunc = function(func, cb) {
-    var agent = this._client.agent();
+    var agent = this._client.agent(cb);
     agent.send(Buffer.concat([CANT_DO, NULL_CHAR, new Buffer(func)]));
-    cb();
 };
 
 
@@ -240,9 +277,9 @@ PeriodicWorker.prototype.close = function() {
 };
 
 
-var PeriodicJob = function(buf, agent) {
+var PeriodicJob = function(buf, client) {
     this._buffer = buf;
-    this._agent = agent;
+    this._client = client;
     var payload = bsplit(buf, NULL_CHAR);
     this.jobHandle = payload[0];
     this._payload = JSON.parse(payload[1].toString());
@@ -255,19 +292,22 @@ var PeriodicJob = function(buf, agent) {
 
 
 PeriodicJob.prototype.done = function(cb) {
-    this._agent.send(Buffer.concat([WORK_DONE, NULL_CHAR, this.jobHandle]));
-    cb();
+    var agent = this._client.agent(cb);
+    agent.send(Buffer.concat([WORK_DONE, NULL_CHAR, this.jobHandle]));
+    agent.emit('end');
 };
 
 
 PeriodicJob.prototype.fail = function(cb) {
-    this._agent.send(Buffer.concat([WORK_FAIL, NULL_CHAR, this.jobHandle]));
-    cb();
+    var agent = this._client.agent(cb);
+    agent.send(Buffer.concat([WORK_FAIL, NULL_CHAR, this.jobHandle]));
+    agent.emit('end');
 };
 
 
 PeriodicJob.prototype.schedLater = function(delay, cb) {
-    this._agent.send(Buffer.concat([SCHED_LATER, NULL_CHAR, this.jobHandle,
+    var agent = this._client.agent(cb);
+    agent.send(Buffer.concat([SCHED_LATER, NULL_CHAR, this.jobHandle,
                 NULL_CHAR, new Buffer("" + delay)]));
-    cb();
+    agent.emit('end');
 };
