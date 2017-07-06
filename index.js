@@ -212,7 +212,8 @@ PeriodicClient.prototype.status = function(cb) {
                 'func_name': stat[0],
                 'worker_count': Number(stat[1]),
                 'job_count': Number(stat[2]),
-                'processing': Number(stat[3])
+                'processing': Number(stat[3]),
+                'schedat': Number(stat[4])
             };
 
         });
