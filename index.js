@@ -3,7 +3,7 @@
 var net = require('net')
   , EventEmitter = require('events').EventEmitter
   , util = require('util')
-  , bsplit = require('buffer-split')
+  , bufferIndexOf = require('buffer-indexof')
   , bufferEqual = require('buffer-equal')
   , uuid = require('uuid')
   ;
@@ -56,7 +56,7 @@ var BaseClient = function(options, clientType) {
     socket.on("data", function(chunk) {
         self._buffers.push(chunk);
         var buffer = Buffer.concat(self._buffers);
-        if (buffer.length >= 8) {
+        while (buffer.length >= 8) {
             var magic = buffer.slice(0, 4);
             if (!bufferEqual(magic, MAGIC_RESPONSE)) {
                 throw "Magic not match.";
@@ -64,14 +64,18 @@ var BaseClient = function(options, clientType) {
             var header = buffer.slice(4, 8);
             var length = parseHeader(header);
             if (buffer.length >=  8 + length) {
-                self._buffers = [buffer.slice(8 + length, buffer.length)];
                 var payload = buffer.slice(8, 8 + length);
-                var uuid = bsplit(payload, NULL_CHAR)[0];
-                payload = payload.slice(uuid.length + NULL_CHAR.length, payload.length);
-                self.emitAgent('data', uuid, payload);
-                self.emitAgent('end', uuid);
+                var parts = bsplit(payload, NULL_CHAR, 2);
+                var uuid = parts[0].toString();
+                self.emitAgent('data', uuid, parts[1]);
+                self.emitAgent('end',  uuid);
+
+                buffer = buffer.slice(8 + length, buffer.length);
+            } else {
+                break;
             }
         }
+        self._buffers = [buffer];
     });
 };
 
@@ -138,7 +142,7 @@ BaseClient.prototype.close = function() {
 
 
 BaseClient.prototype.agent = function(cb) {
-    var agent = new BaseAgent(this, uuid.v1(), cb);
+    var agent = new BaseAgent(this, uuid.v1().toString(), cb);
     this._agents[agent._uuid] = agent;
     return agent;
 };
@@ -156,7 +160,9 @@ BaseClient.prototype.emitAgent = function(evt, uuid, data) {
     if (agent) {
         agent.emit(evt, data);
     } else {
+      if (data && data.length > 0) {
         throw 'Agent ' + uuid + ' not found.';
+      }
     }
 };
 
@@ -192,8 +198,7 @@ PeriodicClient.prototype.ping = function(cb) {
 
 PeriodicClient.prototype.submitJob = function(job, cb) {
     var agent = this._client.agent(cb);
-    agent.send(Buffer.concat([SUBMIT_JOB, NULL_CHAR,
-                new Buffer(JSON.stringify(job))]));
+    agent.send(Buffer.concat([SUBMIT_JOB, NULL_CHAR, encodeJob(job)]));
 };
 
 
@@ -225,7 +230,7 @@ PeriodicClient.prototype.dropFunc = function(func, cb) {
 
 PeriodicClient.prototype.removeJob = function(job, cb) {
     var agent = this._client.agent(cb);
-    agent.send(Buffer.concat([REMOVE_JOB, NULL_CHAR, new Buffer(JSON.stringify(job))]));
+    agent.send(Buffer.concat([REMOVE_JOB, NULL_CHAR, encodeJob(job)]));
 };
 
 
@@ -280,9 +285,9 @@ PeriodicWorker.prototype.close = function() {
 var PeriodicJob = function(buf, client) {
     this._buffer = buf;
     this._client = client;
-    var payload = bsplit(buf, NULL_CHAR);
+    var payload = bsplit(buf, NULL_CHAR, 2);
     this.jobHandle = payload[0];
-    this._payload = JSON.parse(payload[1].toString());
+    this._payload = decodeJob(payload[1]);
     this.funcName = this._payload.func;
     this.name = this._payload.name;
     this.schedAt = this._payload.sched_at;
@@ -311,3 +316,66 @@ PeriodicJob.prototype.schedLater = function(delay, cb) {
                 NULL_CHAR, new Buffer("" + delay)]));
     agent.emit('end');
 };
+
+function encodeJob(job) {
+  var ret = [new Buffer(job.func), NULL_CHAR, new Buffer(job.name)];
+  if (job.workload || job.count > 0 || job.sched_at > 0) {
+    ret.push(NULL_CHAR);
+    ret.push(new Buffer("" + job.sched_at));
+  }
+  if (job.workload || job.count > 0) {
+    ret.push(NULL_CHAR);
+    ret.push(new Buffer("" + job.count));
+  }
+  if (job.workload) {
+    ret.push(NULL_CHAR);
+    ret.push(job.workload);
+  }
+  return Buffer.concat(ret);
+}
+
+function decodeJob(payload) {
+  var parts = bsplit(payload, NULL_CHAR, 5)
+  var size = parts.length;
+
+  var job = {};
+  job.func = parts[0].toString();
+  job.name = parts[1].toString();
+  if (size > 2) {
+    job.sched_at = Number(parts[2]);
+  }
+  if (size > 3) {
+    job.count = Number(parts[3]);
+  }
+  if (size > 4) {
+    job.workload = parts[4];
+  }
+  return job;
+}
+
+function bsplit(buf, splitBuf, total){
+
+  var search = -1
+  , lines = []
+  , count = 1
+  , total = total || -1;
+  ;
+
+  if (total === 1) {
+    lines.push(total);
+    return lines;
+  }
+
+  while((search = bufferIndexOf(buf,splitBuf)) > -1){
+    lines.push(buf.slice(0,search));
+    buf = buf.slice(search+splitBuf.length,buf.length);
+    count += 1;
+    if (total > -1 && count >= total) {
+      break;
+    }
+  }
+
+  if(buf.length) lines.push(buf);
+
+  return lines;
+}
