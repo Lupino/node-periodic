@@ -64,35 +64,35 @@ var TLSTransport = function(options) {
 
 util.inherits(TLSTransport, EventEmitter);
 
-Transport.prototype.onData = function(chunk) {
+TLSTransport.prototype.onData = function(chunk) {
   this.emit('data', chunk);
 };
 
-Transport.prototype.onClose = function(had_error) {
+TLSTransport.prototype.onClose = function(had_error) {
   this.emit('close', had_error);
 };
 
-Transport.prototype.onConnect = function() {
+TLSTransport.prototype.onConnect = function() {
   this.emit('connect');
 };
 
-Transport.prototype.onEnd = function() {
+TLSTransport.prototype.onEnd = function() {
   this.emit('end');
 };
 
-Transport.prototype.onError = function(err) {
+TLSTransport.prototype.onError = function(err) {
   this.emit('error', err);
 };
 
-Transport.prototype.onTimeout = function() {
+TLSTransport.prototype.onTimeout = function() {
   this.emit('timeout');
 };
 
-Transport.prototype.write = function(data, encoding, callback) {
+TLSTransport.prototype.write = function(data, encoding, callback) {
   this._socket.write(data, encoding, callback);
 };
 
-Transport.prototype.end = function(data, encoding) {
+TLSTransport.prototype.end = function(data, encoding) {
   this._socket.end(data, encoding);
 };
 

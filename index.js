@@ -6,6 +6,7 @@ var EventEmitter = require('events').EventEmitter
   , bufferEqual = require('buffer-equal')
   , uuid = require('uuid')
   , Transport = require('./transport').Transport
+  , TLSTransport = require('./transport').TLSTransport
   ;
 
 var NOOP        = exports.NOOP        = new Buffer('\x00');
@@ -187,7 +188,13 @@ function makeHeader(data) {
 
 
 var PeriodicClient = exports.PeriodicClient = function(options) {
-  this._client = new BaseClient(options, TYPE_CLIENT);
+  var transportClass;
+  if (options.tls) {
+    transportClass = TLSTransport;
+  } else {
+    transportClass = Transport;
+  }
+  this._client = new BaseClient(options, TYPE_CLIENT, transportClass);
 };
 
 
@@ -242,7 +249,13 @@ PeriodicClient.prototype.close = function() {
 
 
 var PeriodicWorker = exports.PeriodicWorker = function(options) {
-  this._client = new BaseClient(options, TYPE_WORKER);
+  var transportClass;
+  if (options.tls) {
+    transportClass = TLSTransport;
+  } else {
+    transportClass = Transport;
+  }
+  this._client = new BaseClient(options, TYPE_WORKER, transportClass);
 };
 
 
