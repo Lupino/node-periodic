@@ -86,42 +86,30 @@ test('worker', function(t) {
     },
     function(ok, next) {
       t.pass('client submitJob');
-      worker.addFunc(func, function() {
-        setTimeout(function() {
-          // body...
+      var count = 1;
+      worker.addFunc(func, function(job) {
+        t.equal(job.funcName, func);
+        t.equal(job.name, 'haha');
+        t.pass('schedAt: ' + job.schedAt);
+        if (count > 1) {
+          job.done();
           next();
-        }, 1000);
+        } else {
+          job.schedLater(5);
+        }
+        count = count + 1;
       });
-    },
-    function(next) {
-      t.pass('worker addFunc');
-      worker.grabJob(next);
-    },
-    function(job, next) {
-      t.pass('worker grabJob');
-      t.equal(job.funcName, func);
-      t.equal(job.name, 'haha');
-      t.pass('schedAt: ' + job.schedAt);
-      job.schedLater(5, next);
-    },
-    function(next) {
-      t.pass('Job schedLater');
-      worker.grabJob(next);
-    },
-    function(job, next) {
-      t.pass('worker grabJob');
-      t.equal(job.funcName, func);
-      t.equal(job.name, 'haha');
-      t.pass('schedAt: ' + job.schedAt);
-      job.done(next);
+      worker.work()
     },
     function(next) {
       t.pass('Job Done');
-      client.dropFunc(func, next);
+      client.dropFunc(func);
+      next();
     }
   ], function() {
     client.close();
-    worker.close();
+    // worker.close();
     t.end();
+    process.exit();
   });
 });
