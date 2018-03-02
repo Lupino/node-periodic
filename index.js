@@ -286,7 +286,13 @@ PeriodicWorker.prototype._work = function() {
 
       task = self._tasks[job.funcName];
       if (task) {
-        task(job);
+        try {
+          task(job);
+        } catch (e) {
+          console.error("process job fail", e)
+          job.fail();
+          sendGrabJob();
+        }
       } else {
         self.removeFunc(job.funcName);
         job.fail();
