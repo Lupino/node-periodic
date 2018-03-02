@@ -125,11 +125,16 @@ BaseAgent.prototype.onEnd = function () {
   if (this._autoremove) {
     this._client.removeAgent(this);
   }
+  var cb = this._cb;
   if (this._data && this._data.length > 0) {
-    var data = Buffer.concat(this._data);
-    this._cb(null, data);
+    var data = this._data.shift();
+    setImmediate(function() {
+      cb(null, data);
+    });
   } else {
-    this._cb();
+    setImmediate(function() {
+      cb();
+    });
   }
 };
 
