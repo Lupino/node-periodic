@@ -310,7 +310,9 @@ PeriodicWorker.prototype._work = function() {
     }
     timer = setTimeout(function() {
       if (!waiting) {
-        agent.send(GRAB_JOB);
+        if (agent._data.length === 0) {
+          agent.send(GRAB_JOB);
+        }
       }
       sendGrabJob(1)
     }, delay * 1000);
