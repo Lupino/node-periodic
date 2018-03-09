@@ -188,8 +188,14 @@ var PeriodicClient = exports.PeriodicClient = function(options) {
     transportClass = Transport;
   }
   this._client = new BaseClient(options, TYPE_CLIENT, transportClass);
+  checkAlive(this);
 };
 
+function checkAlive(client) {
+  client.ping(() => {
+    setTimeout(() => { checkAlive(client) }, 100000);
+  })
+}
 
 PeriodicClient.prototype.ping = function(cb) {
   var agent = this._client.agent(cb);
