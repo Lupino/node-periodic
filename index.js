@@ -280,15 +280,18 @@ function withClient(pool, func) {
     if (argv > 0) {
       if (typeof args[argv - 1] === 'funciton') {
         var cb = args.pop();
-        args.push(function() {
-          cb.apply(null, arguments);
-        });
       }
     }
 
     var resourcePromise = pool.acquire();
     resourcePromise
       .then(function(client) {
+        if (cb) {
+          args.push(function() {
+            pool.release(client);
+            cb.apply(null, arguments);
+          });
+        }
         client[func].apply(client, args);
         if (!cb) pool.release(client)
       })

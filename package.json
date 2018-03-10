@@ -1,6 +1,6 @@
 {
   "name": "node-periodic",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Peridoc task system node client.",
   "main": "index.js",
   "scripts": {
