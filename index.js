@@ -7,6 +7,7 @@ var EventEmitter = require('events').EventEmitter
   , Transport = require('./transport').Transport
   , TLSTransport = require('./transport').TLSTransport
   , su = new ShortUUID('0123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz')
+  , genericPool = require("generic-pool")
   ;
 
 var NOOP        = exports.NOOP        = new Buffer('\x00');
@@ -245,6 +246,57 @@ PeriodicClient.prototype.removeJob = function(job, cb) {
 PeriodicClient.prototype.close = function() {
   this._client.close();
 };
+
+
+var PeriodicClientPool = exports.PeriodicClientPool = function(options, poolOpts) {
+  var factory = {
+    create: function() {
+      return new PeriodicClient(options);
+    },
+    destroy: function(client) {
+      client.close();
+    }
+  };
+  var pool = genericPool.createPool(factory, poolOpts);
+
+  this.ping = withClient(pool, 'ping');
+  this.submitJob = withClient(pool, 'submitJob');
+  this.status = withClient(pool, 'status');
+  this.dropFunc = withClient(pool, 'dropFunc');
+  this.removeJob = withClient(pool, 'removeJob');
+  this.close = pool.destroy.bind(pool);
+
+};
+
+function withClient(pool, func) {
+  return function() {
+    var args = [];
+    arguments.forEach(function(arg) {
+      args.push(arg);
+    });
+
+    var argv = args.length;
+    var cb = false;
+    if (argv > 0) {
+      if (typeof args[argv - 1] === 'funciton') {
+        var cb = args.pop();
+        args.push(function() {
+          cb.apply(null, arguments);
+        });
+      }
+    }
+
+    var resourcePromise = pool.acquire();
+    resourcePromise
+      .then(function(client) {
+        client[func].apply(client, args);
+        if (!cb) pool.release(client)
+      })
+      .catch(function(err) {
+        if (cb) cb(err);
+      })
+  };
+}
 
 
 var PeriodicWorker = exports.PeriodicWorker = function(options) {

@@ -1,6 +1,6 @@
 {
   "name": "node-periodic",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Peridoc task system node client.",
   "main": "index.js",
   "scripts": {
@@ -15,6 +15,7 @@
   "dependencies": {
     "async": "^2.6.0",
     "buffer-equal": "1.0.0",
+    "generic-pool": "^3.4.2",
     "shortuuid": "^0.1.0"
   },
   "devDependencies": {
