@@ -271,11 +271,10 @@ var PeriodicClientPool = exports.PeriodicClientPool = function(options, poolOpts
 function withClient(pool, func) {
   return function() {
     var args = [];
-    arguments.forEach(function(arg) {
-      args.push(arg);
-    });
-
-    var argv = args.length;
+    var argv = arguments.length;
+    for (var i=0;i<argv;i++) {
+      args.push(arguments[i])
+    }
     var cb = false;
     if (argv > 0) {
       if (typeof args[argv - 1] === 'funciton') {
