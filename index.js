@@ -3,11 +3,10 @@
 var EventEmitter = require('events').EventEmitter
   , util = require('util')
   , bufferEqual = require('buffer-equal')
-  , ShortUUID = require('shortuuid')
   , Transport = require('./transport').Transport
   , TLSTransport = require('./transport').TLSTransport
-  , su = new ShortUUID('0123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz')
   , genericPool = require("generic-pool")
+  , randomString = require('random-string')
   ;
 
 var NOOP        = exports.NOOP        = new Buffer('\x00');
@@ -159,7 +158,7 @@ BaseClient.prototype.agent = function(autotemove, cb) {
     cb = autotemove;
     autotemove = true;
   }
-  var agent = new BaseAgent(this, su.random(4), cb, autotemove);
+  var agent = new BaseAgent(this, randomString({length: 4}), cb, autotemove);
   this._agents[agent._uuid] = agent;
   return agent;
 };
