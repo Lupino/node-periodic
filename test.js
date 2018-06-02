@@ -40,7 +40,7 @@ test('submitJob', function(t) {
   var job = {
     func: 'test',
     name: 'haha',
-    sched_at: Number(new Date())
+    sched_at: Math.floor(new Date() / 1000)
   };
   client.submitJob(job, function(err, ok) {
     t.equal(ok[0], periodic.SUCCESS[0]);

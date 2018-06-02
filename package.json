@@ -16,6 +16,7 @@
     "async": "^2.6.1",
     "buffer-equal": "1.0.0",
     "generic-pool": "^3.4.2",
+    "int64-buffer": "^0.1.10",
     "random-string": "^0.2.0"
   },
   "devDependencies": {

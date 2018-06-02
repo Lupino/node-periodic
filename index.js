@@ -7,43 +7,44 @@ var EventEmitter = require('events').EventEmitter
   , TLSTransport = require('./transport').TLSTransport
   , genericPool = require("generic-pool")
   , randomString = require('random-string')
+  , Uint64BE = require('int64-buffer').Uint64BE
   ;
 
-var NOOP        = exports.NOOP        = new Buffer('\x00');
+var NOOP        = exports.NOOP        = Buffer.from('\x00');
 // for job
-var GRAB_JOB    = exports.GRAB_JOB    = new Buffer('\x01');
-var SCHED_LATER = exports.SCHED_LATER = new Buffer('\x02');
-var WORK_DONE   = exports.WORK_DONE   = new Buffer('\x03');
-var WORK_FAIL   = exports.WORK_FAIL   = new Buffer('\x04');
-var JOB_ASSIGN  = exports.JOB_ASSIGN  = new Buffer('\x05');
-var NO_JOB      = exports.NO_JOB      = new Buffer('\x06');
+var GRAB_JOB    = exports.GRAB_JOB    = Buffer.from('\x01');
+var SCHED_LATER = exports.SCHED_LATER = Buffer.from('\x02');
+var WORK_DONE   = exports.WORK_DONE   = Buffer.from('\x03');
+var WORK_FAIL   = exports.WORK_FAIL   = Buffer.from('\x04');
+var JOB_ASSIGN  = exports.JOB_ASSIGN  = Buffer.from('\x05');
+var NO_JOB      = exports.NO_JOB      = Buffer.from('\x06');
 // for func
-var CAN_DO      = exports.CAN_DO      = new Buffer('\x07');
-var CANT_DO     = exports.CANT_DO     = new Buffer('\x08');
+var CAN_DO      = exports.CAN_DO      = Buffer.from('\x07');
+var CANT_DO     = exports.CANT_DO     = Buffer.from('\x08');
 // for test
-var PING        = exports.PING        = new Buffer('\x09');
-var PONG        = exports.PONG        = new Buffer('\x0A');
+var PING        = exports.PING        = Buffer.from('\x09');
+var PONG        = exports.PONG        = Buffer.from('\x0A');
 // other
-var SLEEP       = exports.SLEEP       = new Buffer('\x0B');
-var UNKNOWN     = exports.UNKNOWN     = new Buffer('\x0C');
+var SLEEP       = exports.SLEEP       = Buffer.from('\x0B');
+var UNKNOWN     = exports.UNKNOWN     = Buffer.from('\x0C');
 // client command
-var SUBMIT_JOB  = exports.SUBMIT_JOB  = new Buffer('\x0D');
-var STATUS      = exports.STATUS      = new Buffer('\x0E');
-var DROP_FUNC   = exports.DROP_FUNC   = new Buffer('\x0F');
-var SUCCESS     = exports.SUCCESS     = new Buffer('\x10');
-var REMOVE_JOB  = exports.REMOVE_JOB  = new Buffer('\x11');
+var SUBMIT_JOB  = exports.SUBMIT_JOB  = Buffer.from('\x0D');
+var STATUS      = exports.STATUS      = Buffer.from('\x0E');
+var DROP_FUNC   = exports.DROP_FUNC   = Buffer.from('\x0F');
+var SUCCESS     = exports.SUCCESS     = Buffer.from('\x10');
+var REMOVE_JOB  = exports.REMOVE_JOB  = Buffer.from('\x11');
 
-var RUN_JOB     = exports.RUN_JOB     = new Buffer('\x1C');
-var WORK_DATA   = exports.WORK_DATA   = new Buffer('\x1E');
+var RUN_JOB     = exports.RUN_JOB     = Buffer.from('\x1C');
+var WORK_DATA   = exports.WORK_DATA   = Buffer.from('\x1E');
 
-var MAGIC_REQUEST   = new Buffer('\x00REQ');
-var MAGIC_RESPONSE  = new Buffer('\x00RES');
+var MAGIC_REQUEST   = Buffer.from('\x00REQ');
+var MAGIC_RESPONSE  = Buffer.from('\x00RES');
 
 
 // client type
 
-var TYPE_CLIENT = new Buffer('\x01');
-var TYPE_WORKER = new Buffer('\x02');
+var TYPE_CLIENT = Buffer.from('\x01');
+var TYPE_WORKER = Buffer.from('\x02');
 
 
 var BaseClient = function(options, clientType, TransportClass) {
@@ -109,9 +110,9 @@ util.inherits(BaseAgent, EventEmitter);
 
 BaseAgent.prototype.send = function(buf) {
   if (this._uuid) {
-    buf = Buffer.concat([new Buffer(this._uuid + ''), buf]);
+    buf = Buffer.concat([Buffer.from(this._uuid + ''), buf]);
   }
-  var header = new Buffer(4);
+  var header = Buffer.alloc(4);
   header.writeUInt32BE(buf.length);
   this._client._transport.write(MAGIC_REQUEST);
   this._client._transport.write(header);
@@ -460,38 +461,35 @@ PeriodicJob.prototype.schedLater = function(delay) {
 };
 
 function encodeStr8(dat) {
-  dat = new Buffer(dat || '');
-  var h = new Buffer(1);
+  dat = Buffer.from(dat || '');
+  var h = Buffer.alloc(1);
   h.writeUInt8(dat.length);
   return Buffer.concat([h, dat]);
 }
 
 function encodeStr32(dat) {
-  dat = new Buffer(dat || '');
-  var h = new Buffer(4);
+  dat = Buffer.from(dat || '');
+  var h = Buffer.alloc(4);
   h.writeUInt32BE(dat.length);
   return Buffer.concat([h, dat])
 }
 
 function encodeInt16(n) {
   n = n || 0;
-  var h = new Buffer(4);
+  var h = Buffer.alloc(4);
   h.writeUInt32BE(n);
   return h;
 }
 
 function encodeInt32(n) {
   n = n || 0;
-  var h = new Buffer(4);
+  var h = Buffer.alloc(4);
   h.writeUInt32BE(n);
   return h;
 }
 
 function encodeInt64(n) {
-  n = n || 0;
-  var h = new Buffer(8);
-  h.writeUIntBE(n, 0, 8);
-  return h;
+  return Uint64BE(n || 0).toBuffer();
 }
 
 function encodeJob(job) {
@@ -522,7 +520,7 @@ function decodeJob(payload) {
   job.workload = payload.slice(0, h).toString();
   payload = payload.slice(h);
 
-  job.sched_at = payload.slice(0, 8).readUIntBE(0, 8);
+  job.sched_at = Uint64BE(payload.slice(0, 8)).toNumber();
   payload = payload.slice(8);
 
   job.count = payload.slice(0, 4).readUInt32BE();
