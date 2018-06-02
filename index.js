@@ -5,7 +5,7 @@ var EventEmitter = require('events').EventEmitter
   , bufferEqual = require('buffer-equal')
   , Transport = require('./transport').Transport
   , TLSTransport = require('./transport').TLSTransport
-  , genericPool = require("generic-pool")
+  , genericPool = require('generic-pool')
   , randomString = require('random-string')
   , Uint64BE = require('int64-buffer').Uint64BE
   ;
@@ -155,7 +155,7 @@ BaseClient.prototype.close = function() {
 
 
 BaseClient.prototype.agent = function(autotemove, cb) {
-  if (typeof autotemove === "function") {
+  if (typeof autotemove === 'function') {
     cb = autotemove;
     autotemove = true;
   }
@@ -197,8 +197,8 @@ var PeriodicClient = exports.PeriodicClient = function(options) {
 
 function checkAlive(client) {
   client.ping(() => {
-    setTimeout(() => { checkAlive(client) }, 100000);
-  })
+    setTimeout(() => { checkAlive(client); }, 100000);
+  });
 }
 
 PeriodicClient.prototype.ping = function(cb) {
@@ -257,7 +257,7 @@ PeriodicClient.prototype.close = function() {
 };
 
 
-var PeriodicClientPool = exports.PeriodicClientPool = function(options, poolOpts) {
+exports.PeriodicClientPool = function(options, poolOpts) {
   var factory = {
     create: function() {
       return new PeriodicClient(options);
@@ -282,12 +282,12 @@ function withClient(pool, func) {
     var args = [];
     var argv = arguments.length;
     for (var i=0;i<argv;i++) {
-      args.push(arguments[i])
+      args.push(arguments[i]);
     }
     var cb = false;
     if (argv > 0) {
       if (typeof args[argv - 1] === 'funciton') {
-        var cb = args.pop();
+        cb = args.pop();
       }
     }
 
@@ -301,11 +301,11 @@ function withClient(pool, func) {
           });
         }
         client[func].apply(client, args);
-        if (!cb) pool.release(client)
+        if (!cb) pool.release(client);
       })
       .catch(function(err) {
         if (cb) cb(err);
-      })
+      });
   };
 }
 
@@ -335,7 +335,7 @@ PeriodicWorker.prototype.work = function(size) {
   for (var i=0; i<size; i++) {
     this._work();
   }
-}
+};
 
 PeriodicWorker.prototype._work = function() {
   var self = this;
@@ -358,7 +358,7 @@ PeriodicWorker.prototype._work = function() {
         try {
           task(job);
         } catch (e) {
-          console.error("process job fail", e)
+          console.error('process job fail', e);
           job.fail();
           sendGrabJob();
         }
@@ -383,11 +383,11 @@ PeriodicWorker.prototype._work = function() {
           agent.send(GRAB_JOB);
         }
       }
-      sendGrabJob(1)
+      sendGrabJob(1);
     }, delay * 1000);
   }
   sendGrabJob();
-}
+};
 
 
 PeriodicWorker.prototype.addFunc = function(func, task) {
@@ -416,7 +416,7 @@ var PeriodicJob = function(buf, client, done) {
   this._client = client;
   this._done = done;
   var h = buf.slice(0, 1).readUInt8();
-  this.jobHandle = buf.slice(0, h + 1)
+  this.jobHandle = buf.slice(0, h + 1);
   buf = buf.slice(h + 1);
 
   this._payload = decodeJob(buf);
@@ -471,7 +471,7 @@ function encodeStr32(dat) {
   dat = Buffer.from(dat || '');
   var h = Buffer.alloc(4);
   h.writeUInt32BE(dat.length);
-  return Buffer.concat([h, dat])
+  return Buffer.concat([h, dat]);
 }
 
 function encodeInt16(n) {
@@ -499,23 +499,23 @@ function encodeJob(job) {
     encodeStr32(job.workload),
     encodeInt64(job.sched_at),
     encodeInt32(job.count),
-  ])
+  ]);
 }
 
 function decodeJob(payload) {
   var job = {};
   var h = 0;
-  h = payload.slice(0, 1).readUInt8()
+  h = payload.slice(0, 1).readUInt8();
   payload = payload.slice(1);
   job.func = payload.slice(0, h).toString();
   payload = payload.slice(h);
 
-  h = payload.slice(0, 1).readUInt8()
+  h = payload.slice(0, 1).readUInt8();
   payload = payload.slice(1);
   job.name = payload.slice(0, h).toString();
   payload = payload.slice(h);
 
-  h = payload.slice(0, 4).readUInt32BE()
+  h = payload.slice(0, 4).readUInt32BE();
   payload = payload.slice(4);
   job.workload = payload.slice(0, h).toString();
   payload = payload.slice(h);

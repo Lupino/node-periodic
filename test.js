@@ -1,7 +1,6 @@
 var periodic = require('./index');
 var test = require('tape');
 var async = require('async');
-var transport = require('./transport');
 // var fs = require('fs');
 
 var options = {
@@ -99,7 +98,7 @@ test('worker', function(t) {
         }
         count = count + 1;
       });
-      worker.work()
+      worker.work();
     },
     function(next) {
       t.pass('Job Done');
