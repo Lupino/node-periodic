@@ -34,6 +34,9 @@ var DROP_FUNC   = exports.DROP_FUNC   = new Buffer('\x0F');
 var SUCCESS     = exports.SUCCESS     = new Buffer('\x10');
 var REMOVE_JOB  = exports.REMOVE_JOB  = new Buffer('\x11');
 
+var RUN_JOB     = exports.RUN_JOB     = new Buffer('\x1C');
+var WORK_DATA   = exports.WORK_DATA   = new Buffer('\x1E');
+
 var MAGIC_REQUEST   = new Buffer('\x00REQ');
 var MAGIC_RESPONSE  = new Buffer('\x00RES');
 
@@ -207,6 +210,12 @@ PeriodicClient.prototype.ping = function(cb) {
 PeriodicClient.prototype.submitJob = function(job, cb) {
   var agent = this._client.agent(cb);
   agent.send(Buffer.concat([SUBMIT_JOB, encodeJob(job)]));
+};
+
+// runJob and return the result
+PeriodicClient.prototype.runJob = function(job, cb) {
+  var agent = this._client.agent(cb);
+  agent.send(Buffer.concat([RUN_JOB, encodeJob(job)]));
 };
 
 
@@ -422,6 +431,14 @@ var PeriodicJob = function(buf, client, done) {
 PeriodicJob.prototype.done = function() {
   var agent = this._client.agent();
   agent.send(Buffer.concat([WORK_DONE, this.jobHandle]));
+  agent.emit('end');
+  this._done();
+};
+
+
+PeriodicJob.prototype.data = function(data) {
+  var agent = this._client.agent();
+  agent.send(Buffer.concat([WORK_DATA, this.jobHandle, data]));
   agent.emit('end');
   this._done();
 };
