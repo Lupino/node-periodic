@@ -114,9 +114,7 @@ BaseAgent.prototype.send = function(buf) {
   }
   var header = Buffer.alloc(4);
   header.writeUInt32BE(buf.length);
-  this._client._transport.write(MAGIC_REQUEST);
-  this._client._transport.write(header);
-  this._client._transport.write(buf);
+  this._client._transport.write(Buffer.concat([MAGIC_REQUEST, header, buf]));
 };
 
 
@@ -438,7 +436,7 @@ PeriodicJob.prototype.done = function() {
 
 PeriodicJob.prototype.data = function(data) {
   var agent = this._client.agent();
-  agent.send(Buffer.concat([WORK_DATA, this.jobHandle, data]));
+  agent.send(Buffer.concat([WORK_DATA, this.jobHandle, Buffer.from(data)]));
   agent.emit('end');
   this._done();
 };
