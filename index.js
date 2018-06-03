@@ -20,6 +20,7 @@ var JOB_ASSIGN  = exports.JOB_ASSIGN  = Buffer.from('\x05');
 var NO_JOB      = exports.NO_JOB      = Buffer.from('\x06');
 // for func
 var CAN_DO      = exports.CAN_DO      = Buffer.from('\x07');
+var BROADCAST   = exports.BROADCAST   = Buffer.from('\x15');
 var CANT_DO     = exports.CANT_DO     = Buffer.from('\x08');
 // for test
 var PING        = exports.PING        = Buffer.from('\x09');
@@ -391,6 +392,14 @@ PeriodicWorker.prototype._work = function() {
 PeriodicWorker.prototype.addFunc = function(func, task) {
   var agent = this._client.agent();
   agent.send(Buffer.concat([CAN_DO, encodeStr8(func)]));
+  agent.emit('end');
+  this._tasks[func] = task;
+};
+
+
+PeriodicWorker.prototype.broadcast = function(func, task) {
+  var agent = this._client.agent();
+  agent.send(Buffer.concat([BROADCAST, encodeStr8(func)]));
   agent.emit('end');
   this._tasks[func] = task;
 };
