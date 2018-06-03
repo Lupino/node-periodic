@@ -34,8 +34,8 @@ var DROP_FUNC   = exports.DROP_FUNC   = Buffer.from('\x0F');
 var SUCCESS     = exports.SUCCESS     = Buffer.from('\x10');
 var REMOVE_JOB  = exports.REMOVE_JOB  = Buffer.from('\x11');
 
-var RUN_JOB     = exports.RUN_JOB     = Buffer.from('\x1C');
-var WORK_DATA   = exports.WORK_DATA   = Buffer.from('\x1E');
+var RUN_JOB     = exports.RUN_JOB     = Buffer.from('\x19');
+var WORK_DATA   = exports.WORK_DATA   = Buffer.from('\x1A');
 
 var MAGIC_REQUEST   = Buffer.from('\x00REQ');
 var MAGIC_RESPONSE  = Buffer.from('\x00RES');
