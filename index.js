@@ -113,9 +113,7 @@ BaseAgent.prototype.send = function(buf) {
   if (this._msgid) {
     buf = Buffer.concat([Buffer.from(this._msgid + ''), buf]);
   }
-  var header = Buffer.alloc(4);
-  header.writeUInt32BE(buf.length);
-  this._client._transport.write(Buffer.concat([MAGIC_REQUEST, header, buf]));
+  this._client._transport.write(Buffer.concat([MAGIC_REQUEST, encodeStr32(buf)]));
 };
 
 
