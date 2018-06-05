@@ -511,8 +511,8 @@ function encodeStr32(dat) {
 
 function encodeInt16(n) {
   n = n || 0;
-  var h = Buffer.alloc(4);
-  h.writeUInt32BE(n);
+  var h = Buffer.alloc(2);
+  h.writeUInt16BE(n);
   return h;
 }
 
