@@ -353,7 +353,18 @@ PeriodicWorker.prototype._work = function() {
       task = self._tasks[job.funcName];
       if (task) {
         try {
-          task(job);
+          task(job, function(err, ret, later) {
+            if (err) {
+              return job.fail();
+            }
+            if (ret) {
+              return job.data(ret);
+            }
+            if (later) {
+              return job.schedLater(later);
+            }
+            job.done();
+          });
         } catch (e) {
           console.error('process job fail', e);
           job.fail();
@@ -387,6 +398,19 @@ PeriodicWorker.prototype._work = function() {
 };
 
 
+// addFunc to periodic server.
+// eg.
+//        worker.addFunc(funcName, function(job, done) {
+//          // you code here
+//          // done the job
+//          done()
+//          // fail the job
+//          done(someError)
+//          // send data to cient
+//          done(null, someData)
+//          // sched later
+//          done(null, null, later);
+//        })
 PeriodicWorker.prototype.addFunc = function(func, task) {
   var agent = this._client.agent();
   agent.send(Buffer.concat([CAN_DO, encodeStr8(func)]));
@@ -395,6 +419,12 @@ PeriodicWorker.prototype.addFunc = function(func, task) {
 };
 
 
+// set the func is a broadcast func.
+// eg.
+//        worker.broadcast(funcName, function(job, done) {
+//          // you code here
+//          done()
+//        })
 PeriodicWorker.prototype.broadcast = function(func, task) {
   var agent = this._client.agent();
   agent.send(Buffer.concat([BROADCAST, encodeStr8(func)]));
