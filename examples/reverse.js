@@ -15,7 +15,7 @@ var options = {
 
 var worker = new periodic.PeriodicWorker(options);
 
-worker.addFunc('reverse', function(job) {
-  job.data(Buffer.from(job.name).reverse())
+worker.addFunc('reverse', function(job, done) {
+  done(null, Buffer.from(job.name).reverse());
 });
 worker.work();
