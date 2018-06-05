@@ -71,9 +71,9 @@ var BaseClient = function(options, clientType, TransportClass) {
       var length = header.readUInt32BE();
       if (buffer.length >=  8 + length) {
         var payload = buffer.slice(8, 8 + length);
-        var uuid = payload.slice(0, 4).toString();
-        self.emitAgent('data', uuid, payload.slice(4));
-        self.emitAgent('end',  uuid);
+        var msgid = payload.slice(0, 4).toString();
+        self.emitAgent('data', msgid, payload.slice(4));
+        self.emitAgent('end',  msgid);
 
         buffer = buffer.slice(8 + length, buffer.length);
       } else {
@@ -85,9 +85,9 @@ var BaseClient = function(options, clientType, TransportClass) {
 };
 
 
-var BaseAgent = function(client, uuid, cb, autotemove) {
+var BaseAgent = function(client, msgid, cb, autotemove) {
   this._client = client;
-  this._uuid = uuid;
+  this._msgid = msgid;
   this._cb = cb || function() {};
   this._data = [];
   this._autoremove = autotemove === undefined ? true : autotemove;
@@ -110,8 +110,8 @@ var BaseAgent = function(client, uuid, cb, autotemove) {
 util.inherits(BaseAgent, EventEmitter);
 
 BaseAgent.prototype.send = function(buf) {
-  if (this._uuid) {
-    buf = Buffer.concat([Buffer.from(this._uuid + ''), buf]);
+  if (this._msgid) {
+    buf = Buffer.concat([Buffer.from(this._msgid + ''), buf]);
   }
   var header = Buffer.alloc(4);
   header.writeUInt32BE(buf.length);
@@ -159,25 +159,25 @@ BaseClient.prototype.agent = function(autotemove, cb) {
     autotemove = true;
   }
   var agent = new BaseAgent(this, randomString({length: 4}), cb, autotemove);
-  this._agents[agent._uuid] = agent;
+  this._agents[agent._msgid] = agent;
   return agent;
 };
 
 
 BaseClient.prototype.removeAgent = function(agent) {
-  if (this._agents[agent._uuid]) {
-    delete this._agents[agent._uuid];
+  if (this._agents[agent._msgid]) {
+    delete this._agents[agent._msgid];
   }
 };
 
 
-BaseClient.prototype.emitAgent = function(evt, uuid, data) {
-  var agent = this._agents[uuid];
+BaseClient.prototype.emitAgent = function(evt, msgid, data) {
+  var agent = this._agents[msgid];
   if (agent) {
     agent.emit(evt, data);
   } else {
     if (data && data.length > 0) {
-      throw 'Agent ' + uuid + ' not found.';
+      throw 'Agent ' + msgid + ' not found.';
     }
   }
 };
