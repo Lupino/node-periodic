@@ -36,7 +36,6 @@ var SUCCESS     = exports.SUCCESS     = Buffer.from('\x10');
 var REMOVE_JOB  = exports.REMOVE_JOB  = Buffer.from('\x11');
 
 var RUN_JOB     = exports.RUN_JOB     = Buffer.from('\x19');
-var WORK_DATA   = exports.WORK_DATA   = Buffer.from('\x1A');
 
 var MAGIC_REQUEST   = Buffer.from('\x00REQ');
 var MAGIC_RESPONSE  = Buffer.from('\x00RES');
@@ -243,9 +242,13 @@ PeriodicClient.prototype.dropFunc = function(func, cb) {
 };
 
 
-PeriodicClient.prototype.removeJob = function(job, cb) {
+PeriodicClient.prototype.removeJob = function(opts, cb) {
   var agent = this._client.agent(cb);
-  agent.send(Buffer.concat([REMOVE_JOB, encodeJob(job)]));
+  agent.send(Buffer.concat([
+    REMOVE_JOB,
+    encodeStr8(opts.func),
+    encodeStr8(opts.name)
+  ]));
 };
 
 
@@ -463,17 +466,10 @@ var PeriodicJob = function(buf, client, done) {
 };
 
 
-PeriodicJob.prototype.done = function() {
+PeriodicJob.prototype.done = function(data) {
   var agent = this._client.agent();
-  agent.send(Buffer.concat([WORK_DONE, this.jobHandle]));
-  agent.emit('end');
-  this._done();
-};
-
-
-PeriodicJob.prototype.data = function(data) {
-  var agent = this._client.agent();
-  agent.send(Buffer.concat([WORK_DATA, this.jobHandle, Buffer.from(data)]));
+  data = data || '';
+  agent.send(Buffer.concat([WORK_DONE, this.jobHandle, Buffer.from(data)]));
   agent.emit('end');
   this._done();
 };
@@ -528,12 +524,20 @@ function encodeInt64(n) {
 }
 
 function encodeJob(job) {
+  var ver = 0;
+  var ext = Buffer.alloc(1);
+  ext.writeUInt8(ver);
+
+  if (ver === 1) {
+    ext = Buffer.concat([ext, encodeInt32(job.count)]);
+  }
+
   return Buffer.concat([
     encodeStr8(job.func),
     encodeStr8(job.name),
     encodeStr32(job.workload),
     encodeInt64(job.sched_at),
-    encodeInt32(job.count),
+    ext,
   ]);
 }
 
@@ -558,6 +562,11 @@ function decodeJob(payload) {
   job.sched_at = Uint64BE(payload.slice(0, 8)).toNumber();
   payload = payload.slice(8);
 
-  job.count = payload.slice(0, 4).readUInt32BE();
+  var ver = payload.slice(0, 1).readUInt8();
+  payload = payload.slice(1);
+  if (ver === 1) {
+    job.count = payload.slice(0, 4).readUInt32BE();
+  }
+
   return job;
 }

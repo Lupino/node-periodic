@@ -1,5 +1,4 @@
 var periodic = require('../index');
-var async = require('async');
 // var fs = require('fs');
 
 var options = {
