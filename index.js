@@ -528,6 +528,10 @@ function encodeJob(job) {
   var ext = Buffer.alloc(1);
   ext.writeUInt8(ver);
 
+  if (job.count > 0) {
+    ver === 1
+  }
+
   if (ver === 1) {
     ext = Buffer.concat([ext, encodeInt32(job.count)]);
   }
