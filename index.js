@@ -528,12 +528,20 @@ function encodeJob(job) {
   var ext = Buffer.alloc(1);
   ext.writeUInt8(ver);
 
-  if (job.count > 0) {
-    ver === 1
+  if (job.count > 0 && job.timeout > 0) {
+    ver = 3;
+  } else if (job.timeout > 0) {
+    ver = 2;
+  } else if (job.count > 0) {
+    ver = 1;
   }
 
   if (ver === 1) {
     ext = Buffer.concat([ext, encodeInt32(job.count)]);
+  } else if (ver === 2) {
+    ext = Buffer.concat([ext, encodeInt32(job.timeout)]);
+  } else if (ver === 3) {
+    ext = Buffer.concat([ext, encodeInt32(job.count), encodeInt32(job.timeout)]);
   }
 
   return Buffer.concat([
@@ -570,6 +578,11 @@ function decodeJob(payload) {
   payload = payload.slice(1);
   if (ver === 1) {
     job.count = payload.slice(0, 4).readUInt32BE();
+  } else if (ver === 2) {
+    job.timeout = payload.slice(0, 4).readUInt32BE();
+  } else if (ver === 3) {
+    job.count = payload.slice(0, 4).readUInt32BE();
+    job.timeout = payload.slice(4, 8).readUInt32BE();
   }
 
   return job;
