@@ -37,6 +37,10 @@ var REMOVE_JOB  = exports.REMOVE_JOB  = Buffer.from('\x11');
 
 var RUN_JOB     = exports.RUN_JOB     = Buffer.from('\x19');
 
+var ACQUIRED    = exports.ACQUIRED    = Buffer.from('\x1A');
+var ACQUIRE     = exports.ACQUIRE     = Buffer.from('\x1B');
+var RELEASE     = exports.RELEASE     = Buffer.from('\x1C');
+
 var MAGIC_REQUEST   = Buffer.from('\x00REQ');
 var MAGIC_RESPONSE  = Buffer.from('\x00RES');
 
@@ -452,7 +456,16 @@ PeriodicWorker.prototype.close = function() {
 var PeriodicJob = function(buf, client, done) {
   this._buffer = buf;
   this._client = client;
-  this._done = done;
+  this.doneed = false;
+  var self = this;
+  this._done = function() {
+    if (self.doneed) {
+      return;
+    } else {
+      self.doneed = true;
+      done();
+    }
+  };
 
   this._payload = decodeJob(buf);
 
@@ -491,6 +504,33 @@ PeriodicJob.prototype.schedLater = function(delay) {
   agent.emit('end');
   this._done();
 };
+
+
+PeriodicJob.prototype.acquireLock = function(name, maxCount, cb) {
+  var self = this;
+  var agent = this._client.agent(function(err, buf) {
+    if (buf[0] === ACQUIRED[0]) {
+      if (buf[1] === 1) {
+        cb(function() {
+          self.releaseLock(name);
+          self._done();
+        });
+      } else {
+        self._done();
+      }
+    } else {
+      self._done();
+    }
+  });
+  agent.send(Buffer.concat([ACQUIRE, encodeStr8(name), encodeInt16(maxCount),
+    this.jobHandle]));
+};
+
+PeriodicJob.prototype.releaseLock = function(name) {
+  var agent = this._client.agent();
+  agent.send(Buffer.concat[RELEASE, encodeStr8(name), this.jobHandle]);
+  agent.emit('end');
+}
 
 function encodeStr8(dat) {
   dat = Buffer.from(dat || '');
