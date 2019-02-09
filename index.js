@@ -453,13 +453,14 @@ var PeriodicJob = function(buf, client, done) {
   this._buffer = buf;
   this._client = client;
   this._done = done;
-  var h = buf.slice(0, 1).readUInt8();
-  this.jobHandle = buf.slice(0, h + 1);
-  buf = buf.slice(h + 1);
 
   this._payload = decodeJob(buf);
+
   this.funcName = this._payload.func;
   this.name = this._payload.name;
+
+  this.jobHandle = Buffer.concat([encodeStr8(this.funcName), encodeStr8(this.name)]);
+
   this.schedAt = this._payload.sched_at;
   this.runAt = this._payload.run_at || this.schedAt;
   this.workload = this._payload.workload;
