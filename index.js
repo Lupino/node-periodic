@@ -534,19 +534,27 @@ PeriodicJob.prototype.releaseLock = function(name) {
 
 function encodeStr8(dat) {
   dat = Buffer.from(dat || '');
-  var h = Buffer.alloc(1);
-  h.writeUInt8(dat.length);
-  return Buffer.concat([h, dat]);
+  return Buffer.concat([encodeInt8(dat.length), dat]);
 }
 
 function encodeStr32(dat) {
   dat = Buffer.from(dat || '');
-  var h = Buffer.alloc(4);
-  h.writeUInt32BE(dat.length);
-  return Buffer.concat([h, dat]);
+  return Buffer.concat([encodeInt32(dat.length), dat]);
+}
+
+function encodeInt8(n) {
+  if (n > 0xFF) {
+    throw new Error('Data to large 0xFF');
+  }
+  var h = Buffer.alloc(1);
+  h.writeUInt8(n);
+  return h;
 }
 
 function encodeInt16(n) {
+  if (n > 0xFFFF) {
+    throw new Error('Data to large 0xFFFF');
+  }
   n = n || 0;
   var h = Buffer.alloc(2);
   h.writeUInt16BE(n);
@@ -554,6 +562,9 @@ function encodeInt16(n) {
 }
 
 function encodeInt32(n) {
+  if (n > 0xFFFFFFFF) {
+    throw new Error('Data to large 0xFFFFFFFF');
+  }
   n = n || 0;
   var h = Buffer.alloc(4);
   h.writeUInt32BE(n);
@@ -566,9 +577,6 @@ function encodeInt64(n) {
 
 function encodeJob(job) {
   var ver = 0;
-  var ext = Buffer.alloc(1);
-  ext.writeUInt8(ver);
-
   if (job.count > 0 && job.timeout > 0) {
     ver = 3;
   } else if (job.timeout > 0) {
@@ -576,6 +584,8 @@ function encodeJob(job) {
   } else if (job.count > 0) {
     ver = 1;
   }
+
+  var ext = encodeInt8(ver);
 
   if (ver === 1) {
     ext = Buffer.concat([ext, encodeInt32(job.count)]);
