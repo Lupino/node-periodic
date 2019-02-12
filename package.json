@@ -15,13 +15,13 @@
   "dependencies": {
     "async": "^2.6.1",
     "buffer-equal": "1.0.0",
-    "generic-pool": "^3.4.2",
-    "int64-buffer": "^0.1.10",
+    "generic-pool": "^3.6.1",
+    "int64-buffer": "^0.99.1007",
     "js-crc": "^0.2.0",
     "random-string": "^0.2.0"
   },
   "devDependencies": {
-    "eslint": "^4.19.1",
-    "tape": "^4.9.0"
+    "eslint": "^5.13.0",
+    "tape": "^4.10.0"
   }
 }
