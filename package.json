@@ -17,6 +17,7 @@
     "buffer-equal": "1.0.0",
     "generic-pool": "^3.4.2",
     "int64-buffer": "^0.1.10",
+    "js-crc": "^0.2.0",
     "random-string": "^0.2.0"
   },
   "devDependencies": {

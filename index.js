@@ -8,6 +8,7 @@ var EventEmitter = require('events').EventEmitter
   , genericPool = require('generic-pool')
   , randomString = require('random-string')
   , Uint64BE = require('int64-buffer').Uint64BE
+  , CRC32 = require('js-crc').crc32
   ;
 
 var NOOP        = exports.NOOP        = Buffer.from('\x00');
@@ -65,20 +66,26 @@ var BaseClient = function(options, clientType, TransportClass) {
   transport.on('data', function(chunk) {
     self._buffers.push(chunk);
     var buffer = Buffer.concat(self._buffers);
-    while (buffer.length >= 8) {
+    while (buffer.length >= 12) {
       var magic = buffer.slice(0, 4);
       if (!bufferEqual(magic, MAGIC_RESPONSE)) {
         throw 'Magic not match.';
       }
       var header = buffer.slice(4, 8);
       var length = header.readUInt32BE();
-      if (buffer.length >=  8 + length) {
-        var payload = buffer.slice(8, 8 + length);
+      if (buffer.length >=  12 + length) {
+        var crc = buffer.slice(8, 12);
+        var payload = buffer.slice(12, 12 + length);
+
+        if (Buffer.from(CRC32(payload), 'hex') === crc) {
+          throw 'CRC not match.'
+        }
+
         var msgid = payload.slice(0, 4).toString();
         self.emitAgent('data', msgid, payload.slice(4));
         self.emitAgent('end',  msgid);
 
-        buffer = buffer.slice(8 + length, buffer.length);
+        buffer = buffer.slice(12 + length, buffer.length);
       } else {
         break;
       }
@@ -116,7 +123,9 @@ BaseAgent.prototype.send = function(buf) {
   if (this._msgid) {
     buf = Buffer.concat([Buffer.from(this._msgid + ''), buf]);
   }
-  this._client._transport.write(Buffer.concat([MAGIC_REQUEST, encodeStr32(buf)]));
+  var size = encodeInt32(buf.length);
+  var crc = Buffer.from(CRC32(buf), 'hex');
+  this._client._transport.write(Buffer.concat([MAGIC_REQUEST, size, crc, buf]));
 };
 
 
