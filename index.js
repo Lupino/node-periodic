@@ -332,6 +332,7 @@ var PeriodicWorker = exports.PeriodicWorker = function(options) {
   }
   this._client = new BaseClient(options, TYPE_WORKER, transportClass);
   this._tasks = {};
+  checkAlive(this);
 };
 
 
