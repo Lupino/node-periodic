@@ -42,6 +42,9 @@ var ACQUIRED    = exports.ACQUIRED    = Buffer.from('\x1A');
 var ACQUIRE     = exports.ACQUIRE     = Buffer.from('\x1B');
 var RELEASE     = exports.RELEASE     = Buffer.from('\x1C');
 
+var NO_WORKER   = exports.NO_WORKER   = Buffer.from('\x1D');
+var DATA        = exports.DATA        = Buffer.from('\x1E');
+
 var MAGIC_REQUEST   = Buffer.from('\x00REQ');
 var MAGIC_RESPONSE  = Buffer.from('\x00RES');
 
@@ -223,7 +226,16 @@ PeriodicClient.prototype.submitJob = function(job, cb) {
 
 // runJob and return the result
 PeriodicClient.prototype.runJob = function(job, cb) {
-  var agent = this._client.agent(cb);
+  var agent = this._client.agent(function(err, payload) {
+    if (err) return cb(err);
+    if (payload[0] === NO_WORKER[0]) {
+      return cb(new Error('no worker'))
+    }
+    if (payload[0] == DATA[0]) {
+      return cb(null, payload.slice(1));
+    }
+    return cb(new Error('unknow error ' + payload));
+  });
   agent.send(Buffer.concat([RUN_JOB, encodeJob(job)]));
 };
 

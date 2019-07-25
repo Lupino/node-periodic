@@ -48,6 +48,20 @@ test('submitJob', function(t) {
   });
 });
 
+test('runJob', function(t) {
+  var client = new periodic.PeriodicClient(options);
+  var job = {
+    func: 'test',
+    name: 'haha',
+    sched_at: Math.floor(new Date() / 1000)
+  };
+  client.runJob(job, function(err, data) {
+    t.equal(err.message, 'no worker');
+    client.close();
+    t.end();
+  });
+});
+
 
 test('status', function(t) {
   var client = new periodic.PeriodicClient(options);
@@ -105,7 +119,79 @@ test('worker', function(t) {
       client.dropFunc(func);
       next();
     }
-  ], function() {
+  ], function(err) {
+    if (err) {
+      t.error(err);
+    }
+    client.close();
+    // worker.close();
+    t.end();
+    // process.exit();
+  });
+});
+
+test('run-job', function(t) {
+  var worker = new periodic.PeriodicWorker(options);
+  var client = new periodic.PeriodicClient(options);
+  var func = 'test_run_job_worker';
+  var func1 = 'test_run_job_worker_sched_later';
+  var func2 = 'test_run_job_worker_fail';
+  var job = {
+    func: func,
+    name: 'haha',
+    sched_at: Math.floor(Number(new Date()) / 1000)
+  };
+  worker.addFunc(func, function(job) {
+    t.equal(job.funcName, func);
+    t.equal(job.name, 'haha');
+    t.pass('schedAt: ' + job.schedAt);
+    job.done(job.name);
+  });
+  worker.addFunc(func1, function(job) {
+    t.equal(job.funcName, func1);
+    t.equal(job.name, 'haha');
+    t.pass('schedAt: ' + job.schedAt);
+    job.schedLater(1)
+  });
+  worker.addFunc(func2, function(job) {
+    t.equal(job.funcName, func2);
+    t.equal(job.name, 'haha');
+    t.pass('schedAt: ' + job.schedAt);
+    job.fail()
+  });
+  worker.work();
+  async.waterfall([
+    function(next) {
+      setTimeout(next, 1000);
+    },
+    function(next) {
+      t.pass('start runJob');
+      client.runJob(job, next);
+    },
+    function(payload, next) {
+      t.equal(job.name, payload.toString());
+      job.func = func1;
+      client.runJob(job, next);
+    },
+    function(payload, next) {
+      t.equal('', payload.toString());
+      job.func = func2;
+      client.runJob(job, next);
+    },
+    function(payload, next) {
+      t.equal('', payload.toString());
+      next();
+    },
+    function(next) {
+      t.pass('Job Done');
+      client.dropFunc(func);
+      client.dropFunc(func1);
+      next();
+    }
+  ], function(err) {
+    if (err) {
+      t.error(err);
+    }
     client.close();
     // worker.close();
     t.end();
