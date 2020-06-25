@@ -84,11 +84,16 @@ var BaseClient = function(options, clientType, TransportClass) {
           throw 'CRC not match.'
         }
 
-        var msgid = payload.slice(0, 4).toString();
-        self.emitAgent('data', msgid, payload.slice(4));
-        self.emitAgent('end',  msgid);
+        if (!self.client_id) {
+          self.client_id = payload.slice(1,5);
+        } else {
+          var msgid = payload.slice(0, 4).toString();
+          self.emitAgent('data', msgid, payload.slice(4));
+          self.emitAgent('end',  msgid);
+        }
 
         buffer = buffer.slice(12 + length, buffer.length);
+
       } else {
         break;
       }
