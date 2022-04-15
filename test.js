@@ -171,16 +171,17 @@ test('run-job', function(t) {
     function(payload, next) {
       t.equal(job.name, payload.toString());
       job.func = func1;
-      client.runJob(job, next);
+      client.runJob(job, function(err) {
+        t.equal(err.message, 'failed');
+        next()
+      });
     },
-    function(payload, next) {
-      t.equal('', payload.toString());
+    function(next) {
       job.func = func2;
-      client.runJob(job, next);
-    },
-    function(payload, next) {
-      t.equal('', payload.toString());
-      next();
+      client.runJob(job, function(err) {
+        t.equal(err.message, 'failed');
+        next()
+      });
     },
     function(next) {
       t.pass('Job Done');

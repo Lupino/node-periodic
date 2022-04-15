@@ -237,7 +237,11 @@ PeriodicClient.prototype.runJob = function(job, cb) {
       return cb(new Error('no worker'))
     }
     if (payload[0] == DATA[0]) {
-      return cb(null, payload.slice(1));
+      payload = payload.slice(1)
+      if (payload.toString() === 'failed') {
+        return cb(new Error('failed'))
+      }
+      return cb(null, payload);
     }
     return cb(new Error('unknow error ' + payload));
   });
@@ -249,7 +253,7 @@ PeriodicClient.prototype.status = function(cb) {
   var agent = this._client.agent(function(err, payload) {
     if (err) return cb(err);
     var retval = {};
-    payload.toString().trim().split('\n').forEach(function(stat) {
+    payload.slice(1).toString().trim().split('\n').forEach(function(stat) {
       stat = stat.split(',');
       retval[stat[0]] = {
         'func_name': stat[0],
