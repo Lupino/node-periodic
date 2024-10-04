@@ -11,39 +11,67 @@ var EventEmitter = require('events').EventEmitter
   , CRC32 = require('js-crc').crc32
   ;
 
-var NOOP        = exports.NOOP        = Buffer.from('\x00');
-// for job
-var GRAB_JOB    = exports.GRAB_JOB    = Buffer.from('\x01');
+// 0x00 SC.Noop
+var NOOP = exports.NOOP = Buffer.from('\x00');
+// 0x01 WC.GrabJob
+var GRAB_JOB = exports.GRAB_JOB = Buffer.from('\x01');
+// 0x02 WC.SchedLater
 var SCHED_LATER = exports.SCHED_LATER = Buffer.from('\x02');
-var WORK_DONE   = exports.WORK_DONE   = Buffer.from('\x03');
-var WORK_FAIL   = exports.WORK_FAIL   = Buffer.from('\x04');
-var JOB_ASSIGN  = exports.JOB_ASSIGN  = Buffer.from('\x05');
-var NO_JOB      = exports.NO_JOB      = Buffer.from('\x06');
-// for func
-var CAN_DO      = exports.CAN_DO      = Buffer.from('\x07');
-var BROADCAST   = exports.BROADCAST   = Buffer.from('\x15');
-var CANT_DO     = exports.CANT_DO     = Buffer.from('\x08');
-// for test
-var PING        = exports.PING        = Buffer.from('\x09');
-var PONG        = exports.PONG        = Buffer.from('\x0A');
-// other
-var SLEEP       = exports.SLEEP       = Buffer.from('\x0B');
-var UNKNOWN     = exports.UNKNOWN     = Buffer.from('\x0C');
-// client command
-var SUBMIT_JOB  = exports.SUBMIT_JOB  = Buffer.from('\x0D');
-var STATUS      = exports.STATUS      = Buffer.from('\x0E');
-var DROP_FUNC   = exports.DROP_FUNC   = Buffer.from('\x0F');
-var SUCCESS     = exports.SUCCESS     = Buffer.from('\x10');
-var REMOVE_JOB  = exports.REMOVE_JOB  = Buffer.from('\x11');
-
-var RUN_JOB     = exports.RUN_JOB     = Buffer.from('\x19');
-
-var ACQUIRED    = exports.ACQUIRED    = Buffer.from('\x1A');
-var ACQUIRE     = exports.ACQUIRE     = Buffer.from('\x1B');
-var RELEASE     = exports.RELEASE     = Buffer.from('\x1C');
-
-var NO_WORKER   = exports.NO_WORKER   = Buffer.from('\x1D');
-var DATA        = exports.DATA        = Buffer.from('\x1E');
+// 0x03 WC.WorkDone
+var WORK_DONE = exports.WORK_DONE = Buffer.from('\x03');
+// 0x04 WC.WorkFail
+var WORK_FAIL = exports.WORK_FAIL = Buffer.from('\x04');
+// 0x05 SC.JobAssign
+var JOB_ASSIGN = exports.JOB_ASSIGN = Buffer.from('\x05');
+// 0x06 SC.NoJob
+var NO_JOB = exports.NO_JOB = Buffer.from('\x06');
+// 0x07 WC.CanDo
+var CAN_DO = exports.CAN_DO = Buffer.from('\x07');
+// 0x08 WC.CantDo
+var CANT_DO = exports.CANT_DO = Buffer.from('\x08');
+// 0x09 WC.Ping
+// 0x09 CC.Ping
+var PING = exports.PING = Buffer.from('\x09');
+// 0x0A SC.Pong
+var PONG = exports.PONG = Buffer.from('\x0A');
+// 0x0B WC.Sleep
+var SLEEP = exports.SLEEP = Buffer.from('\x0B');
+// 0x0C SC.Unknown
+var UNKNOWN = exports.UNKNOWN = Buffer.from('\x0C');
+// 0x0D CC.SubmitJob
+var SUBMIT_JOB = exports.SUBMIT_JOB = Buffer.from('\x0D');
+// 0x0E CC.Status
+var STATUS = exports.STATUS = Buffer.from('\x0E');
+// 0x0F CC.DropFunc
+var DROP_FUNC = exports.DROP_FUNC = Buffer.from('\x0F');
+// 0x10 SC.Success
+var SUCCESS = exports.SUCCESS = Buffer.from('\x10');
+// 0x11 CC.RemoveJob
+var REMOVE_JOB = exports.REMOVE_JOB = Buffer.from('\x11');
+// 0x12 CC.Dump
+// 0x13 CC.Load
+// 0x14 CC.Shutdown
+// 0x15 WC.Broadcast
+var BROADCAST = exports.BROADCAST = Buffer.from('\x15');
+// 0x16 CC.ConfigGet
+// 0x17 CC.ConfigSet
+// 0x18 SC.Config
+// 0x19 CC.RunJob
+var RUN_JOB = exports.RUN_JOB = Buffer.from('\x19');
+// 0x1A SC.Acquired
+var ACQUIRED = exports.ACQUIRED = Buffer.from('\x1A');
+// 0x1B WC.Acquire
+var ACQUIRE = exports.ACQUIRE = Buffer.from('\x1B');
+// 0x1C WC.Release
+var RELEASE = exports.RELEASE = Buffer.from('\x1C');
+// 0x1D SC.NoWorker
+var NO_WORKER = exports.NO_WORKER = Buffer.from('\x1D');
+// 0x1E SC.Data
+var DATA = exports.DATA = Buffer.from('\x1E');
+// 0x1F CC.RecvData
+var RECV_DATA = exports.RECV_DATA = Buffer.from('\x1F');
+// 0x20 WC.WorkData
+var WORK_DATA = exports.WORK_DATA = Buffer.from('\x20');
 
 var MAGIC_REQUEST   = Buffer.from('\x00REQ');
 var MAGIC_RESPONSE  = Buffer.from('\x00RES');
