@@ -4,7 +4,7 @@ var async = require('async');
 // var fs = require('fs');
 
 var options = {
-  port: 5000,
+  port: 5001,
   // tls: true,
   // // Necessary only if using the client certificate authentication
   // key: fs.readFileSync('client-key.pem'),
@@ -98,6 +98,7 @@ test('worker', function(t) {
       client.submitJob(job, next);
     },
     function(ok, next) {
+      t.equal(ok[0], periodic.SUCCESS[0]);
       t.pass('client submitJob');
       var count = 1;
       worker.addFunc(func, function(job) {
@@ -105,19 +106,29 @@ test('worker', function(t) {
         t.equal(job.name, 'haha');
         t.pass('schedAt: ' + job.schedAt);
         if (count > 1) {
-          job.done();
-          next();
+          job.done(function(err, ok) {
+            t.equal(ok[0], periodic.SUCCESS[0]);
+            console.log(err, ok);
+            next();
+          });
         } else {
-          job.schedLater(5);
+          job.schedLater(1, function(err, ok) {
+            t.equal(ok[0], periodic.SUCCESS[0]);
+            console.log(err, ok);
+          });
         }
         count = count + 1;
+      }, function(err, ok) {
+        t.equal(ok[0], periodic.SUCCESS[0]);
+        worker.work();
       });
-      worker.work();
     },
     function(next) {
       t.pass('Job Done');
-      client.dropFunc(func);
-      next();
+      client.dropFunc(func, function(err, ok) {
+        t.equal(ok[0], periodic.SUCCESS[0]);
+        next();
+      });
     }
   ], function(err) {
     if (err) {
@@ -145,19 +156,31 @@ test('run-job', function(t) {
     t.equal(job.funcName, func);
     t.equal(job.name, 'haha');
     t.pass('schedAt: ' + job.schedAt);
-    job.done(job.name);
+    job.done(job.name, function(err, ok) {
+      t.equal(ok[0], periodic.SUCCESS[0]);
+    });
+  }, function(err, ok) {
+    t.equal(ok[0], periodic.SUCCESS[0]);
   });
   worker.addFunc(func1, function(job) {
     t.equal(job.funcName, func1);
     t.equal(job.name, 'haha');
     t.pass('schedAt: ' + job.schedAt);
-    job.schedLater(1)
+    job.schedLater(1, function(err, ok) {
+      t.equal(ok[0], periodic.SUCCESS[0]);
+    })
+  }, function(err, ok) {
+    t.equal(ok[0], periodic.SUCCESS[0]);
   });
   worker.addFunc(func2, function(job) {
     t.equal(job.funcName, func2);
     t.equal(job.name, 'haha');
     t.pass('schedAt: ' + job.schedAt);
-    job.fail()
+    job.fail(function(err, ok) {
+      t.equal(ok[0], periodic.SUCCESS[0]);
+    })
+  }, function(err, ok) {
+    t.equal(ok[0], periodic.SUCCESS[0]);
   });
   worker.work();
   async.waterfall([
@@ -185,8 +208,12 @@ test('run-job', function(t) {
     },
     function(next) {
       t.pass('Job Done');
-      client.dropFunc(func);
-      client.dropFunc(func1);
+      client.dropFunc(func, function(err, ok) {
+        t.equal(ok[0], periodic.SUCCESS[0]);
+      });
+      client.dropFunc(func1, function(err, ok) {
+        t.equal(ok[0], periodic.SUCCESS[0]);
+      });
       next();
     }
   ], function(err) {

@@ -477,10 +477,9 @@ PeriodicWorker.prototype._work = function() {
 //          // sched later
 //          done(null, null, later);
 //        })
-PeriodicWorker.prototype.addFunc = function(func, task) {
-  var agent = this._client.agent();
+PeriodicWorker.prototype.addFunc = function(func, task, cb) {
+  var agent = this._client.agent(cb);
   agent.send(Buffer.concat([CAN_DO, encodeStr8(func)]));
-  agent.emit('end');
   this._tasks[func] = task;
 };
 
@@ -491,18 +490,16 @@ PeriodicWorker.prototype.addFunc = function(func, task) {
 //          // you code here
 //          done()
 //        })
-PeriodicWorker.prototype.broadcast = function(func, task) {
-  var agent = this._client.agent();
+PeriodicWorker.prototype.broadcast = function(func, task, cb) {
+  var agent = this._client.agent(cb);
   agent.send(Buffer.concat([BROADCAST, encodeStr8(func)]));
-  agent.emit('end');
   this._tasks[func] = task;
 };
 
 
-PeriodicWorker.prototype.removeFunc = function(func) {
+PeriodicWorker.prototype.removeFunc = function(func, cb) {
   var agent = this._client.agent();
   agent.send(Buffer.concat([CANT_DO, encodeStr8(func)]));
-  agent.emit('end');
   this._tasks[func] = null;
 };
 
@@ -539,29 +536,39 @@ var PeriodicJob = function(buf, client, done) {
 };
 
 
-PeriodicJob.prototype.done = function(data) {
-  var agent = this._client.agent();
+PeriodicJob.prototype.done = function(data, cb) {
+  if (typeof data === 'function') {
+    cb = data;
+    data = '';
+  }
+  var self = this;
+  var agent = this._client.agent(function(err, payload) {
+    cb(err, payload);
+    self._done();
+  });
   data = data || '';
   agent.send(Buffer.concat([WORK_DONE, this.jobHandle, Buffer.from(data)]));
-  agent.emit('end');
-  this._done();
 };
 
 
-PeriodicJob.prototype.fail = function() {
-  var agent = this._client.agent();
+PeriodicJob.prototype.fail = function(cb) {
+  var self = this;
+  var agent = this._client.agent(function(err, payload) {
+    cb(err, payload);
+    self._done();
+  });
   agent.send(Buffer.concat([WORK_FAIL, this.jobHandle]));
-  agent.emit('end');
-  this._done();
 };
 
 
-PeriodicJob.prototype.schedLater = function(delay) {
-  var agent = this._client.agent();
+PeriodicJob.prototype.schedLater = function(delay, cb) {
+  var self = this;
+  var agent = this._client.agent(function(err, payload) {
+    cb(err, payload);
+    self._done();
+  });
   agent.send(Buffer.concat([SCHED_LATER, this.jobHandle, encodeInt64(delay),
     encodeInt16(0)]));
-  agent.emit('end');
-  this._done();
 };
 
 
@@ -585,10 +592,13 @@ PeriodicJob.prototype.acquireLock = function(name, maxCount, cb) {
     this.jobHandle]));
 };
 
-PeriodicJob.prototype.releaseLock = function(name) {
-  var agent = this._client.agent();
+PeriodicJob.prototype.releaseLock = function(name, cb) {
+  var self = this;
+  var agent = this._client.agent(function(err, payload) {
+    cb(err, payload);
+    self._done();
+  });
   agent.send(Buffer.concat[RELEASE, encodeStr8(name), this.jobHandle]);
-  agent.emit('end');
 }
 
 function encodeStr8(dat) {
