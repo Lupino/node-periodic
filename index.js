@@ -421,15 +421,31 @@ PeriodicWorker.prototype._work = function() {
         try {
           task(job, function(err, ret, later) {
             if (err) {
-              return job.fail();
+              return job.fail(function(err, ok) {
+                if (err) {
+                  console.error('job.fail error', err);
+                }
+              });
             }
             if (ret) {
-              return job.data(ret);
+              return job.done(ret, function(err, ok) {
+                if (err) {
+                  console.error('job.done error', err);
+                }
+              });
             }
             if (later) {
-              return job.schedLater(later);
+              return job.schedLater(later, function(err, ok) {
+                if (err) {
+                  console.error('job.schedLater error', err);
+                }
+              });
             }
-            job.done();
+            job.done(function(err, ok) {
+              if (err) {
+                console.error('job.done error', err);
+              }
+            });
           });
         } catch (e) {
           console.error('process job fail', e);
@@ -476,6 +492,8 @@ PeriodicWorker.prototype._work = function() {
 //          done(null, someData)
 //          // sched later
 //          done(null, null, later);
+//        }, function(err, ok) {
+//
 //        })
 PeriodicWorker.prototype.addFunc = function(func, task, cb) {
   var agent = this._client.agent(cb);
@@ -489,6 +507,8 @@ PeriodicWorker.prototype.addFunc = function(func, task, cb) {
 //        worker.broadcast(funcName, function(job, done) {
 //          // you code here
 //          done()
+//        }, function(err, ok) {
+//
 //        })
 PeriodicWorker.prototype.broadcast = function(func, task, cb) {
   var agent = this._client.agent(cb);
@@ -548,6 +568,18 @@ PeriodicJob.prototype.done = function(data, cb) {
   });
   data = data || '';
   agent.send(Buffer.concat([WORK_DONE, this.jobHandle, Buffer.from(data)]));
+};
+
+
+PeriodicJob.prototype.data = function(data, cb) {
+  if (typeof data === 'function') {
+    cb = data;
+    data = '';
+  }
+  var self = this;
+  var agent = this._client.agent(cb);
+  data = data || '';
+  agent.send(Buffer.concat([WORK_DATA, this.jobHandle, Buffer.from(data)]));
 };
 
 
