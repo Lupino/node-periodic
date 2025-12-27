@@ -9,7 +9,7 @@ var Transport = function(options) {
   EventEmitter.call(this);
   this._socket = net.connect(options);
   // 禁用 Nagle 算法，确保小包实时发送
-  this._socket.setNoDelay(true);
+  // this._socket.setNoDelay(true);
 
   this._socket.on('data', this.onData.bind(this));
   this._socket.on('close', this.onClose.bind(this));
@@ -79,7 +79,7 @@ var RSATransport = function(options) {
   this._socket = net.connect(netOptions);
 
   // [重要] 禁用 Nagle 算法，这对握手协议至关重要
-  this._socket.setNoDelay(true);
+  // this._socket.setNoDelay(true);
 
   this._socket.on('data', this._onSocketData.bind(this));
   this._socket.on('close', this.onClose.bind(this));
