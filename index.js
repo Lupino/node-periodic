@@ -4,7 +4,7 @@ var EventEmitter = require('events').EventEmitter
   , util = require('util')
   , bufferEqual = require('buffer-equal')
   , Transport = require('./transport').Transport
-  , TLSTransport = require('./transport').TLSTransport
+  , RSATransport = require('./transport').RSATransport
   , genericPool = require('generic-pool')
   , randomString = require('random-string')
   , Uint64BE = require('int64-buffer').Uint64BE
@@ -231,8 +231,8 @@ BaseClient.prototype.emitAgent = function(evt, msgid, data) {
 
 var PeriodicClient = exports.PeriodicClient = function(options) {
   var transportClass;
-  if (options.tls) {
-    transportClass = TLSTransport;
+  if (options.rsa) {
+    transportClass = RSATransport;
   } else {
     transportClass = Transport;
   }
@@ -374,8 +374,8 @@ function withClient(pool, func) {
 
 var PeriodicWorker = exports.PeriodicWorker = function(options) {
   var transportClass;
-  if (options.tls) {
-    transportClass = TLSTransport;
+  if (options.rsa) {
+    transportClass = RSATransport;
   } else {
     transportClass = Transport;
   }
