@@ -3,13 +3,13 @@ var periodic = require('../index');
 
 var options = {
   port: 5000,
-  // tls: true,
+  // rsa: true,
   // // Necessary only if using the client certificate authentication
-  // key: fs.readFileSync('client-key.pem'),
-  // cert: fs.readFileSync('client.pem'),
-
-  // // Necessary only if the server uses the self-signed certificate
-  // ca: [ fs.readFileSync('ca.pem') ]
+  // privateKey : fs.readFileSync('private_key.pem'),
+  // peerPublicKey: fs.readFileSync('server_public_key.pem'),
+  // mode: RSATransport.MODE_PLAIN,
+  // // mode: RSATransport.MODE_RSA,
+  // // mode: RSATransport.MODE_AES,
 };
 
 var client = new periodic.PeriodicClient(options);
