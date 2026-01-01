@@ -72,6 +72,8 @@ var DATA = exports.DATA = Buffer.from('\x1E');
 var RECV_DATA = exports.RECV_DATA = Buffer.from('\x1F');
 // 0x20 WC.WorkData
 var WORK_DATA = exports.WORK_DATA = Buffer.from('\x20');
+// 0x21 WC.Assigned
+var JOB_ASSIGNED = exports.JOB_ASSIGNED = Buffer.from('\x21');
 
 var MAGIC_REQUEST   = Buffer.from('\x00REQ');
 var MAGIC_RESPONSE  = Buffer.from('\x00RES');
@@ -410,6 +412,8 @@ PeriodicWorker.prototype._work = function() {
     if (err) return sendGrabJob();
     if (buf[0] === JOB_ASSIGN[0]) {
       waiting = true;
+
+      agent.send(JOB_ASSIGNED);
 
       job = new PeriodicJob(buf.slice(1), self._client, function() {
         waiting = false;
