@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["18", "20", "22"]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Pull periodicd
+        run: docker pull lupino/periodicd:1.2.5.0
+
+      - name: Start periodicd (tcp :5000)
+        run: |
+          docker run -d --name periodicd -p 5000:5000 lupino/periodicd:1.2.5.0
+
+          # wait for port
+          for i in $(seq 1 50); do
+            (echo > /dev/tcp/127.0.0.1/5000) >/dev/null 2>&1 && break
+            sleep 0.2
+          done
+          (echo > /dev/tcp/127.0.0.1/5000)
+
+      - name: Test (plain transport)
+        run: npm test
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker logs periodicd || true
+          docker rm -f periodicd || true

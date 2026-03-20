@@ -2,9 +2,27 @@
   "name": "node-periodic",
   "version": "1.6.0",
   "description": "Peridoc task system node client.",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./transport": {
+      "require": "./dist/transport.js",
+      "types": "./dist/transport.d.ts"
+    }
+  },
+  "files": [
+    "dist/**",
+    "README.md"
+  ],
   "scripts": {
-    "test": "tape test.js"
+    "clean": "rm -rf dist",
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run clean && npm run build",
+    "test": "npm run build && tape test.js"
   },
   "repository": {
     "type": "git",
@@ -20,8 +38,10 @@
     "random-string": "^0.2.0"
   },
   "devDependencies": {
+    "@types/node": "^24.0.0",
     "async": "^3.2.6",
     "eslint": "^9.11.1",
-    "tape": "^5.9.0"
+    "tape": "^5.9.0",
+    "typescript": "^5.9.0"
   }
 }

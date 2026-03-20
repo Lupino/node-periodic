@@ -1,0 +1,78 @@
+name: rsa-ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-rsa:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["18", "20", "22"]
+        rsa_mode: [Plain, RSA, AES]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Pull periodicd
+        run: docker pull lupino/periodicd:1.2.5.0
+
+      - name: Generate RSA keypairs
+        run: |
+          set -euo pipefail
+
+          # Generate PKCS#1 keys (BEGIN RSA PRIVATE KEY) for maximum compatibility
+          # OpenSSL 3 `genpkey` doesn't support `-traditional`; generate PKCS#8 then convert to PKCS#1.
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out client_private.pem
+          openssl rsa -in client_private.pem -traditional -out client_private_pkcs1.pem
+          mv client_private_pkcs1.pem client_private.pem
+          openssl rsa -in client_private.pem -RSAPublicKey_out -out client_public.pem
+
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out server_private.pem
+          openssl rsa -in server_private.pem -traditional -out server_private_pkcs1.pem
+          mv server_private_pkcs1.pem server_private.pem
+          openssl rsa -in server_private.pem -RSAPublicKey_out -out server_public.pem
+
+      - name: Start periodicd (tcp :5000)
+        run: |
+          docker run -d --name periodicd -p 5000:5000 \
+            -v "$PWD/server_private.pem:/keys/private.pem:ro" \
+            -v "$PWD/client_public.pem:/keys/client_public.pem:ro" \
+            -v "$PWD/server_public.pem:/keys/public.pem:ro" \
+            lupino/periodicd:1.2.5.0 \
+            --rsa-private-path /keys/private.pem \
+            --rsa-public-path /keys/client_public.pem
+
+          # wait for port
+          for i in $(seq 1 50); do
+            (echo > /dev/tcp/127.0.0.1/5000) >/dev/null 2>&1 && break
+            sleep 0.2
+          done
+          (echo > /dev/tcp/127.0.0.1/5000)
+
+      - name: Test (rsa transport)
+        env:
+          PERIODIC_RSA_MODE: ${{ matrix.rsa_mode }}
+          PERIODIC_CLIENT_PRIVATE_KEY: client_private.pem
+          PERIODIC_SERVER_PUBLIC_KEY: server_public.pem
+        run: npm test
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker logs periodicd || true
+          docker rm -f periodicd || true

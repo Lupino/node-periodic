@@ -1,4 +1,4 @@
-var periodic = require('../index');
+var periodic = require('../dist/index');
 // var fs = require('fs');
 
 var options = {
