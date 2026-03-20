@@ -86,6 +86,7 @@ export class RSATransport extends EventEmitter {
 
   private privateKey: string | Buffer;
   private peerPublicKey: string | Buffer;
+  private _peerFingerprint: Buffer;
 
   private myKeyDetails: crypto.KeyObject;
   private myKeyBlockSize: number;
@@ -116,6 +117,8 @@ export class RSATransport extends EventEmitter {
 
     this.peerKeyDetails = crypto.createPublicKey(this.peerPublicKey);
     this.peerKeyBlockSize = ((this.peerKeyDetails.asymmetricKeyDetails as any).modulusLength as number) / 8;
+    const peerDer = this.peerKeyDetails.export({ type: 'pkcs1', format: 'der' });
+    this._peerFingerprint = crypto.createHash('sha256').update(peerDer).digest();
 
     // State
     this._buffer = Buffer.alloc(0);
@@ -213,7 +216,10 @@ export class RSATransport extends EventEmitter {
           this._buffer = this._buffer.subarray(this.myKeyBlockSize);
 
           try {
-            this._decryptOAEP(encryptedFP);
+            const serverFingerprint = this._decryptOAEP(encryptedFP);
+            if (!serverFingerprint.equals(this._peerFingerprint)) {
+              throw new Error('Peer fingerprint mismatch');
+            }
             this._performModeNegotiation();
           } catch (e: any) {
             this.onError(new Error('Handshake verification failed: ' + e.message));

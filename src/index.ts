@@ -150,7 +150,7 @@ class BaseClient extends EventEmitter {
           const crc = buffer.subarray(8, 12);
           const payload = buffer.subarray(12, 12 + length);
 
-          if (Buffer.from(CRC32(payload), 'hex') === crc) {
+          if (!bufferEqual(Buffer.from(CRC32(payload), 'hex'), crc)) {
             throw 'CRC not match.';
           }
 
