@@ -62,7 +62,13 @@ const OAEP_HASH = 'sha256';
 const AES_ALGORITHM = 'aes-256-ctr';
 const AES_KEY_SIZE = 32;
 const AES_IV_SIZE = 16;
+const AES_TAG_SIZE = 32;
 const LENGTH_HEADER_SIZE = 8;
+const HANDSHAKE_NONCE_SIZE = 16;
+const FINGERPRINT_SIZE = 32;
+const MAX_PACKET_SIZE = 64 * 1024 * 1024;
+const SERVER_PROOF_DOMAIN = Buffer.from('metro-rsa-server-v1');
+const CLIENT_PROOF_DOMAIN = Buffer.from('metro-rsa-client-v1');
 
 const MODE_PLAIN = 0;
 const MODE_RSA = 1;
@@ -95,8 +101,11 @@ export class RSATransport extends EventEmitter {
   private peerKeyBlockSize: number;
 
   private _buffer: Buffer;
-  private _state: 'HANDSHAKE_SEND_FP' | 'HANDSHAKE_WAIT_SERVER_FP' | 'ESTABLISHED';
+  private _state: 'HANDSHAKE_SEND_HELLO' | 'HANDSHAKE_WAIT_SERVER_FP' | 'HANDSHAKE_WAIT_SERVER_PROOF' | 'HANDSHAKE_WAIT_SERVER_CHALLENGE' | 'ESTABLISHED';
   private _sessionKey: Buffer | null;
+  private _clientFingerprint: Buffer;
+  private _clientNonce: Buffer;
+  private _serverProof: Buffer | null;
   private _writeBuffer: Array<{ data: Buffer; encoding: BufferEncoding | null; callback?: (err?: Error) => void }>;
 
   constructor(options: RSATransportOptions) {
@@ -122,8 +131,11 @@ export class RSATransport extends EventEmitter {
 
     // State
     this._buffer = Buffer.alloc(0);
-    this._state = 'HANDSHAKE_SEND_FP';
+    this._state = 'HANDSHAKE_SEND_HELLO';
     this._sessionKey = null;
+    this._clientFingerprint = Buffer.alloc(0);
+    this._clientNonce = Buffer.alloc(0);
+    this._serverProof = null;
     this._writeBuffer = [];
 
     const netOptions: net.NetConnectOpts = {
@@ -149,9 +161,10 @@ export class RSATransport extends EventEmitter {
     try {
       const myPubKeyObject = crypto.createPublicKey(this.privateKey);
       const myDer = myPubKeyObject.export({ type: 'pkcs1', format: 'der' });
-      const myFingerprint = crypto.createHash('sha256').update(myDer).digest();
+      this._clientFingerprint = crypto.createHash('sha256').update(myDer).digest();
+      this._clientNonce = crypto.randomBytes(HANDSHAKE_NONCE_SIZE);
 
-      this._sendOAEP(myFingerprint);
+      this._sendOAEP(Buffer.concat([this._clientFingerprint, this._clientNonce]));
       this._state = 'HANDSHAKE_WAIT_SERVER_FP';
     } catch (e: any) {
       this.onError(new Error('Handshake init failed: ' + e.message));
@@ -220,9 +233,49 @@ export class RSATransport extends EventEmitter {
             if (!serverFingerprint.equals(this._peerFingerprint)) {
               throw new Error('Peer fingerprint mismatch');
             }
-            this._performModeNegotiation();
+            this._state = 'HANDSHAKE_WAIT_SERVER_PROOF';
           } catch (e: any) {
             this.onError(new Error('Handshake verification failed: ' + e.message));
+            this._socket.destroy();
+            return;
+          }
+          proceed = true;
+        }
+      } else if (this._state === 'HANDSHAKE_WAIT_SERVER_PROOF') {
+        if (this._buffer.length >= this.myKeyBlockSize) {
+          const encryptedProof = this._buffer.subarray(0, this.myKeyBlockSize);
+          this._buffer = this._buffer.subarray(this.myKeyBlockSize);
+          try {
+            this._serverProof = this._decryptOAEP(encryptedProof);
+            this._state = 'HANDSHAKE_WAIT_SERVER_CHALLENGE';
+          } catch (e: any) {
+            this.onError(new Error('Handshake proof failed: ' + e.message));
+            this._socket.destroy();
+            return;
+          }
+          proceed = true;
+        }
+      } else if (this._state === 'HANDSHAKE_WAIT_SERVER_CHALLENGE') {
+        if (this._buffer.length >= this.myKeyBlockSize) {
+          const encryptedChallenge = this._buffer.subarray(0, this.myKeyBlockSize);
+          this._buffer = this._buffer.subarray(this.myKeyBlockSize);
+          try {
+            const challenge = this._decryptOAEP(encryptedChallenge);
+            const expectedProof = crypto
+              .createHash('sha256')
+              .update(Buffer.concat([SERVER_PROOF_DOMAIN, this._clientNonce, this._peerFingerprint]))
+              .digest();
+            if (!this._serverProof || !crypto.timingSafeEqual(this._serverProof, expectedProof)) {
+              throw new Error('Peer proof mismatch');
+            }
+            const clientProof = crypto
+              .createHash('sha256')
+              .update(Buffer.concat([CLIENT_PROOF_DOMAIN, challenge, this._clientFingerprint]))
+              .digest();
+            this._sendOAEP(clientProof);
+            this._performModeNegotiation();
+          } catch (e: any) {
+            this.onError(new Error('Handshake challenge failed: ' + e.message));
             this._socket.destroy();
             return;
           }
@@ -250,13 +303,26 @@ export class RSATransport extends EventEmitter {
         } else if (this._mode === MODE_AES) {
           if (this._buffer.length >= LENGTH_HEADER_SIZE) {
             const packetLen = Number(this._buffer.readBigUInt64BE(0));
+            if (packetLen < AES_IV_SIZE + AES_TAG_SIZE || packetLen > MAX_PACKET_SIZE) {
+              this.onError(new Error('Invalid AES packet length'));
+              this._socket.destroy();
+              return;
+            }
             if (this._buffer.length >= LENGTH_HEADER_SIZE + packetLen) {
               const payload = this._buffer.subarray(LENGTH_HEADER_SIZE, LENGTH_HEADER_SIZE + packetLen);
               this._buffer = this._buffer.subarray(LENGTH_HEADER_SIZE + packetLen);
 
               const iv = payload.subarray(0, AES_IV_SIZE);
-              const ciphertext = payload.subarray(AES_IV_SIZE);
+              const ciphertext = payload.subarray(AES_IV_SIZE, payload.length - AES_TAG_SIZE);
+              const tag = payload.subarray(payload.length - AES_TAG_SIZE);
+              const expectedTag = crypto
+                .createHmac('sha256', this._sessionKey as Buffer)
+                .update(Buffer.concat([iv, ciphertext]))
+                .digest();
               try {
+                if (!crypto.timingSafeEqual(tag, expectedTag)) {
+                  throw new Error('Invalid AES packet authentication tag');
+                }
                 const decipher = crypto.createDecipheriv(AES_ALGORITHM, this._sessionKey as Buffer, iv);
                 let decrypted = decipher.update(ciphertext);
                 decrypted = Buffer.concat([decrypted, decipher.final()]);
@@ -344,7 +410,14 @@ export class RSATransport extends EventEmitter {
         const iv = crypto.randomBytes(AES_IV_SIZE);
         const cipher = crypto.createCipheriv(AES_ALGORITHM, this._sessionKey as Buffer, iv);
         const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
-        const payload = Buffer.concat([iv, encrypted]);
+        const tag = crypto
+          .createHmac('sha256', this._sessionKey as Buffer)
+          .update(Buffer.concat([iv, encrypted]))
+          .digest();
+        const payload = Buffer.concat([iv, encrypted, tag]);
+        if (payload.length > MAX_PACKET_SIZE) {
+          throw new Error('AES packet length exceeds maximum');
+        }
         const header = Buffer.alloc(LENGTH_HEADER_SIZE);
         header.writeBigUInt64BE(BigInt(payload.length));
         return this._socket.write(Buffer.concat([header, payload]), callback);

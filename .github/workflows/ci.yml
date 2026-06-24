@@ -29,7 +29,7 @@ jobs:
         run: npm run build
 
       - name: Pull periodicd
-        run: docker pull lupino/periodicd:1.2.5.0
+        run: docker pull lupino/periodicd:1.2.8.0
 
       - name: Generate RSA keypairs
         if: matrix.rsa_mode != 'Normal'
@@ -51,13 +51,13 @@ jobs:
       - name: Start periodicd (tcp :5000)
         run: |
           if [ "${{ matrix.rsa_mode }}" = "Normal" ]; then
-            docker run -d --name periodicd -p 5000:5000 lupino/periodicd:1.2.5.0
+            docker run -d --name periodicd -p 5000:5000 lupino/periodicd:1.2.8.0
           else
             docker run -d --name periodicd -p 5000:5000 \
               -v "$PWD/server_private.pem:/keys/private.pem:ro" \
               -v "$PWD/client_public.pem:/keys/client_public.pem:ro" \
               -v "$PWD/server_public.pem:/keys/public.pem:ro" \
-              lupino/periodicd:1.2.5.0 \
+              lupino/periodicd:1.2.8.0 \
               --rsa-private-path /keys/private.pem \
               --rsa-public-path /keys/client_public.pem
           fi
