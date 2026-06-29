@@ -77,8 +77,10 @@ const MAGIC_REQUEST = Buffer.from('\x00REQ');
 const MAGIC_RESPONSE = Buffer.from('\x00RES');
 
 // client type
-const TYPE_CLIENT = Buffer.from('\x01');
-const TYPE_WORKER = Buffer.from('\x02');
+export const TYPE_CLIENT = Buffer.from('\x01');
+export const TYPE_WORKER = Buffer.from('\x02');
+export const TYPE_AUTH_CLIENT = Buffer.from('\x03');
+export const TYPE_AUTH_WORKER = Buffer.from('\x04');
 
 export type PeriodicJobSpec = {
   func: string;
@@ -109,8 +111,10 @@ type TransportLike = {
   end(data?: any, encoding?: any): any;
 };
 
-type ClientOptions = {
+export type ClientOptions = {
   rsa?: boolean;
+  clientName?: string | Buffer;
+  clientToken?: string | Buffer;
 } & any;
 
 class BaseClient extends EventEmitter {
@@ -131,7 +135,7 @@ class BaseClient extends EventEmitter {
     this._agents = {};
 
     const agent = new BaseAgent(this, null);
-    agent.send(clientType);
+    agent.send(buildClientRegistration(clientType, options));
 
     this._buffers = [];
     const self = this;
@@ -669,6 +673,39 @@ function encodeStr8(dat: any) {
 function encodeStr32(dat: any) {
   dat = Buffer.from(dat || '');
   return Buffer.concat([encodeInt32(dat.length), dat]);
+}
+
+function encodeBinaryByteString(dat: any) {
+  dat = Buffer.from(dat || '');
+  const size = Buffer.alloc(8);
+  size.writeBigUInt64BE(BigInt(dat.length));
+  return Buffer.concat([size, dat]);
+}
+
+export function buildClientRegistration(clientType: Buffer, options: ClientOptions) {
+  const hasName = options.clientName !== undefined && options.clientName !== null;
+  const hasToken = options.clientToken !== undefined && options.clientToken !== null;
+  if (hasName !== hasToken) {
+    throw new Error('clientName and clientToken must be provided together');
+  }
+  if (!hasName) {
+    return clientType;
+  }
+  if (clientType[0] === TYPE_CLIENT[0]) {
+    return Buffer.concat([
+      TYPE_AUTH_CLIENT,
+      encodeBinaryByteString(options.clientName),
+      encodeBinaryByteString(options.clientToken),
+    ]);
+  }
+  if (clientType[0] === TYPE_WORKER[0]) {
+    return Buffer.concat([
+      TYPE_AUTH_WORKER,
+      encodeBinaryByteString(options.clientName),
+      encodeBinaryByteString(options.clientToken),
+    ]);
+  }
+  throw new Error('unknown client type');
 }
 
 function encodeInt8(n: number) {

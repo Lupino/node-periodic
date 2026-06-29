@@ -29,9 +29,26 @@ function makeTestContext() {
 
   var prefix = rsaMode !== null ? '[rsa ' + String(rsaModeName || '').toLowerCase() + '] ' : '';
 
+  function withAuth(base, nameKey, tokenKey) {
+    var name = process.env[nameKey];
+    var token = process.env[tokenKey];
+    if ((name && !token) || (!name && token)) {
+      throw new Error(nameKey + ' and ' + tokenKey + ' must be provided together');
+    }
+
+    var scoped = Object.assign({}, base);
+    if (name && token) {
+      scoped.clientName = name;
+      scoped.clientToken = token;
+    }
+    return scoped;
+  }
+
   return {
     rsaMode: rsaMode,
     options: options,
+    clientOptions: withAuth(options, 'PERIODIC_CLIENT_NAME', 'PERIODIC_CLIENT_TOKEN'),
+    workerOptions: withAuth(options, 'PERIODIC_WORKER_NAME', 'PERIODIC_WORKER_TOKEN'),
     name: function(name) {
       return prefix + name;
     },
@@ -40,6 +57,37 @@ function makeTestContext() {
 
 var ctx = makeTestContext();
 var options = ctx.options;
+var clientOptions = ctx.clientOptions;
+var workerOptions = ctx.workerOptions;
+
+test('client registration bytes', function(t) {
+  t.equal(periodic.buildClientRegistration(periodic.TYPE_CLIENT, {}).toString('hex'), '01');
+  t.equal(periodic.buildClientRegistration(periodic.TYPE_WORKER, {}).toString('hex'), '02');
+  t.equal(
+    periodic
+      .buildClientRegistration(periodic.TYPE_CLIENT, {
+        clientName: 'abc',
+        clientToken: 'def',
+      })
+      .toString('hex'),
+    '0300000000000000036162630000000000000003646566',
+  );
+  t.equal(
+    periodic
+      .buildClientRegistration(periodic.TYPE_WORKER, {
+        clientName: 'abc',
+        clientToken: 'def',
+      })
+      .toString('hex'),
+    '0400000000000000036162630000000000000003646566',
+  );
+  t.throws(function() {
+    periodic.buildClientRegistration(periodic.TYPE_CLIENT, {
+      clientName: 'abc',
+    });
+  }, /clientName and clientToken/);
+  t.end();
+});
 
 function nowSec() {
   return Math.floor(new Date() / 1000);
@@ -54,7 +102,7 @@ function mkJob(func, name) {
 }
 
 test(ctx.name('ping for worker'), function(t) {
-  var worker = new periodic.PeriodicWorker(options);
+  var worker = new periodic.PeriodicWorker(workerOptions);
   worker.ping(function(err, ok) {
     t.error(err);
     t.equal(ok[0], periodic.PONG[0]);
@@ -64,7 +112,7 @@ test(ctx.name('ping for worker'), function(t) {
 });
 
 test(ctx.name('ping for client'), function(t) {
-  var client = new periodic.PeriodicClient(options);
+  var client = new periodic.PeriodicClient(clientOptions);
   client.ping(function(err, ok) {
     t.error(err);
     t.equal(ok[0], periodic.PONG[0]);
@@ -74,7 +122,7 @@ test(ctx.name('ping for client'), function(t) {
 });
 
 test(ctx.name('submitJob'), function(t) {
-  var client = new periodic.PeriodicClient(options);
+  var client = new periodic.PeriodicClient(clientOptions);
   client.submitJob(mkJob('test', 'haha'), function(err, ok) {
     t.error(err);
     t.equal(ok[0], periodic.SUCCESS[0]);
@@ -84,7 +132,7 @@ test(ctx.name('submitJob'), function(t) {
 });
 
 test(ctx.name('runJob'), function(t) {
-  var client = new periodic.PeriodicClient(options);
+  var client = new periodic.PeriodicClient(clientOptions);
   client.runJob(mkJob('test', 'haha'), function(err) {
     t.ok(err);
     t.equal(err.message, 'no worker');
@@ -94,7 +142,7 @@ test(ctx.name('runJob'), function(t) {
 });
 
 test(ctx.name('status'), function(t) {
-  var client = new periodic.PeriodicClient(options);
+  var client = new periodic.PeriodicClient(clientOptions);
   client.status(function(err, ok) {
     t.error(err);
     t.pass(JSON.stringify(ok));
@@ -104,7 +152,7 @@ test(ctx.name('status'), function(t) {
 });
 
 test(ctx.name('dropFunc'), function(t) {
-  var client = new periodic.PeriodicClient(options);
+  var client = new periodic.PeriodicClient(clientOptions);
   client.dropFunc('test', function(err, ok) {
     t.error(err);
     t.equal(ok[0], periodic.SUCCESS[0]);
@@ -114,8 +162,8 @@ test(ctx.name('dropFunc'), function(t) {
 });
 
 test(ctx.name('worker'), function(t) {
-  var worker = new periodic.PeriodicWorker(options);
-  var client = new periodic.PeriodicClient(options);
+  var worker = new periodic.PeriodicWorker(workerOptions);
+  var client = new periodic.PeriodicClient(clientOptions);
 
   var func = 'test_worker';
   var job = mkJob(func, 'haha');
@@ -181,8 +229,8 @@ test(ctx.name('worker'), function(t) {
 });
 
 test(ctx.name('run-job'), function(t) {
-  var worker = new periodic.PeriodicWorker(options);
-  var client = new periodic.PeriodicClient(options);
+  var worker = new periodic.PeriodicWorker(workerOptions);
+  var client = new periodic.PeriodicClient(clientOptions);
 
   var func = 'test_run_job_worker';
   var func1 = 'test_run_job_worker_sched_later';

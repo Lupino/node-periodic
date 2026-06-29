@@ -82,6 +82,60 @@ jobs:
           docker logs periodicd || true
           docker rm -f periodicd || true
 
+  auth-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Pull periodicd
+        run: docker pull lupino/periodicd:1.2.9.0
+
+      - name: Write auth file
+        run: |
+          cat > periodic-auth.txt <<EOF
+          client client-a token-client-a test,test_worker,test_run_job_worker,test_run_job_worker_sched_later,test_run_job_worker_fail
+          worker worker-a token-worker-a test_worker,test_run_job_worker,test_run_job_worker_sched_later,test_run_job_worker_fail
+          EOF
+
+      - name: Start periodicd (tcp :5000)
+        run: |
+          docker run -d --name periodicd -p 5000:5000 \
+            -v "$PWD/periodic-auth.txt:/keys/periodic-auth.txt:ro" \
+            lupino/periodicd:1.2.9.0 \
+            --auth-file /keys/periodic-auth.txt
+
+          for i in $(seq 1 50); do
+            (echo > /dev/tcp/127.0.0.1/5000) >/dev/null 2>&1 && break
+            sleep 0.2
+          done
+          (echo > /dev/tcp/127.0.0.1/5000)
+
+      - name: Test with client auth
+        env:
+          PERIODIC_CLIENT_NAME: client-a
+          PERIODIC_CLIENT_TOKEN: token-client-a
+          PERIODIC_WORKER_NAME: worker-a
+          PERIODIC_WORKER_TOKEN: token-worker-a
+        run: npm test
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker logs periodicd || true
+          docker rm -f periodicd || true
+
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [test]
